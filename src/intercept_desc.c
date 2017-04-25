@@ -58,7 +58,7 @@ open_orig_file(const struct intercept_desc *desc)
 {
 	long fd;
 
-	fd = syscall_no_intercept(SYS_open, desc->dlinfo.dli_fname, O_RDONLY);
+	fd = syscall_no_intercept(SYS_open, desc->path, O_RDONLY);
 
 	if (fd < 0)
 		xabort();
@@ -86,8 +86,7 @@ add_text_info(struct intercept_desc *desc, const Elf64_Shdr *header,
 		Elf64_Half index)
 {
 	desc->text_offset = header->sh_offset;
-	desc->text_start =
-	    (unsigned char *)(desc->dlinfo.dli_fbase) + header->sh_offset;
+	desc->text_start = desc->base_addr + header->sh_offset;
 	desc->text_end = desc->text_start + header->sh_size - 1;
 	desc->text_section_index = index;
 }
@@ -105,7 +104,7 @@ find_sections(struct intercept_desc *desc, long fd)
 	desc->symbol_tables.count = 0;
 	desc->rela_tables.count = 0;
 
-	elf_header = (const Elf64_Ehdr *)(desc->dlinfo.dli_fbase);
+	elf_header = (const Elf64_Ehdr *)(desc->load_offset);
 
 	Elf64_Shdr sec_headers[elf_header->e_shnum];
 
@@ -372,8 +371,7 @@ find_jumps_in_section_syms(struct intercept_desc *desc, Elf64_Shdr *section,
 		debug_dump("jump target: %lx\n",
 		    (unsigned long)syms[i].st_value);
 
-		unsigned char *address =
-		    syms[i].st_value + (unsigned char *)desc->dlinfo.dli_fbase;
+		unsigned char *address = desc->base_addr + syms[i].st_value;
 
 		/* a function entry point in .text, mark it */
 		mark_jump(desc, address);
@@ -423,8 +421,7 @@ find_jumps_in_section_rela(struct intercept_desc *desc, Elf64_Shdr *section,
 				    (unsigned long)syms[i].r_addend);
 
 				unsigned char *address =
-				    (unsigned char *)desc->dlinfo.dli_fbase +
-				    syms[i].r_addend;
+				    desc->base_addr + syms[i].r_addend;
 
 				mark_jump(desc, address);
 
@@ -774,8 +771,7 @@ dump_skip_ranges(const struct intercept_desc *desc)
 	size_t text_size = desc->text_end + 1 - desc->text_start;
 
 	for (const struct range *r = desc->skip_ranges; r->address; ++r) {
-		size_t offset =
-		    r->address - (unsigned char *)(desc->dlinfo.dli_fbase);
+		size_t offset = r->address - desc->base_addr;
 
 		if (r->size > 0) {
 			debug_dump("skip range at: %zx - %zx\n",
@@ -821,7 +817,7 @@ find_skip_ranges(struct intercept_desc *desc)
 		unsigned char *address = desc->text_start + i;
 
 		debug_dump("looking at jump at: %tx\n",
-		    address - (unsigned char *)desc->dlinfo.dli_fbase);
+		    address - desc->base_addr);
 
 		size = i - range_start;
 
@@ -855,7 +851,7 @@ find_skip_ranges(struct intercept_desc *desc)
 void
 find_syscalls(struct intercept_desc *desc)
 {
-	debug_dump("find_syscalls in %s\n", desc->dlinfo.dli_fname);
+	debug_dump("find_syscalls in %s\n", desc->path);
 
 	desc->count = 0;
 

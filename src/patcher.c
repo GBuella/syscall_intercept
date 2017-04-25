@@ -485,7 +485,7 @@ create_patch_wrappers(struct intercept_desc *desc)
 
 				int l = snprintf(buffer, sizeof(buffer),
 					"unintercepted syscall at: %s 0x%lx\n",
-					desc->dlinfo.dli_fname,
+					desc->path,
 					patch->syscall_offset);
 
 				intercept_log(buffer, (size_t)l);
@@ -497,7 +497,7 @@ create_patch_wrappers(struct intercept_desc *desc)
 
 		create_wrapper(patch, desc->c_destination,
 			desc->uses_trampoline_table,
-			desc->dlinfo.dli_fname);
+			desc->path);
 	}
 }
 
