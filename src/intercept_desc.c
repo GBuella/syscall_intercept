@@ -58,7 +58,7 @@ open_orig_file(const struct intercept_desc *desc)
 {
 	long fd;
 
-	fd = syscall_no_intercept(SYS_open, desc->dlinfo.dli_fname, O_RDONLY);
+	fd = syscall_no_intercept(SYS_open, desc->path, O_RDONLY);
 
 	if (fd < 0)
 		xabort();
@@ -79,7 +79,7 @@ find_sections(struct intercept_desc *desc, long fd)
 	desc->has_symtab = false;
 	desc->has_dynsym = false;
 
-	elf_header = (const Elf64_Ehdr *)(desc->dlinfo.dli_fbase);
+	elf_header = (const Elf64_Ehdr *)(desc->base_addr);
 
 	Elf64_Shdr sec_headers[elf_header->e_shnum];
 
@@ -101,9 +101,7 @@ find_sections(struct intercept_desc *desc, long fd)
 		if (strcmp(name, ".text") == 0) {
 			text_section_found = true;
 			desc->text_offset = section->sh_offset;
-			desc->text_start =
-			    (unsigned char *)(desc->dlinfo.dli_fbase) +
-			    section->sh_offset;
+			desc->text_start = desc->base_addr + section->sh_offset;
 			desc->text_end =
 			    desc->text_start + section->sh_size - 1;
 			desc->text_section_index = i;
@@ -313,8 +311,14 @@ find_jumps_in_section_syms(struct intercept_desc *desc, Elf64_Shdr *section,
 		if (syms[i].st_shndx != desc->text_section_index)
 			continue; /* it is not in the text section */
 
-		unsigned char *address =
-		    syms[i].st_value + (unsigned char *)desc->dlinfo.dli_fbase;
+		/*
+		 * char buf[0x200];
+		 * sprintf(buf, "symbol in file %s at %p in mem at %p\n",
+		 *     desc->path, (void *)syms[i].st_value,
+		 *     (void *)(desc->load_offset + syms[i].st_value));
+		 * syscall_no_intercept(SYS_write, 1, buf, strlen(buf));
+		 */
+		unsigned char *address = desc->load_offset + syms[i].st_value;
 
 		/* a function entry point in .text, mark it */
 		mark_jump(desc, address);
@@ -581,7 +585,7 @@ allocate_trampoline_table(struct intercept_desc *desc)
 	} else {
 		guess = desc->text_end - INT32_MAX;
 		guess = (unsigned char *)(((uintptr_t)guess)
-				& ~((uintptr_t)(0xfff)));
+				& ~((uintptr_t)(0xfff))) + 0x1000;
 	}
 
 	if ((uintptr_t)guess < get_min_address())

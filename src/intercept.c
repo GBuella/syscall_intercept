@@ -49,6 +49,7 @@
 #include <string.h>
 #include <syscall.h>
 #include <sys/mman.h>
+#include <sys/auxv.h>
 
 #include "intercept.h"
 #include "intercept_util.h"
@@ -61,15 +62,6 @@ int (*intercept_hook_point)(long syscall_number,
 			long arg2, long arg3,
 			long arg4, long arg5,
 			long *result);
-
-static Dl_info libc_dlinfo;
-static Dl_info pthreads_dlinfo;
-
-static int find_glibc_dl(void);
-static int find_libpthread_dl(void);
-
-static struct intercept_desc glibc_patches;
-static struct intercept_desc pthreads_patches;
 
 static void log_header(void);
 
@@ -85,61 +77,243 @@ intercept_routine(long nr, long arg0, long arg1,
 			long return_to_asm_wrapper,
 			long rsp_in_asm_wrapper);
 
+/* Should all objects be patched, or only libc and libpthread? */
+static bool patch_all_objs;
+
+/*
+ * Information collected during dissassembly phase, and anything else
+ * needed for hotpatching are stored in this dynamically allocated
+ * array of structs.
+ * The number currently allocated is in the objs_count variable.
+ */
+static struct intercept_desc *objs;
+static unsigned objs_count;
+
+/* was libc found while looking for loaded objects? */
+static bool libc_found;
+
+/* address of [vdso] */
+static void *vdso_addr;
+
+/*
+ * allocate_next_obj_desc
+ * Handles the dynamic allocation of the struct intercept_desc array.
+ * Returns a pointer to a newly allocated item.
+ */
+static struct intercept_desc *
+allocate_next_obj_desc(void)
+{
+	if (objs_count == 0)
+		objs = xmmap_anon(sizeof(objs[0]));
+	else
+		objs = xmremap(objs, objs_count * sizeof(objs[0]),
+			(objs_count + 1) * sizeof(objs[0]));
+
+	++objs_count;
+	return objs + objs_count - 1;
+}
+
+/*
+ * get_lib_short_name - find filename in path containing directories.
+ */
+static const char *
+get_lib_short_name(const char *name)
+{
+	const char *slash = strrchr(name, '/');
+	if (slash != NULL)
+		name = slash + 1;
+
+	return name;
+}
+
+/*
+ * str_match - matching library names.
+ * The first string (name) is not null terminated, while
+ * the second string (expected) is null terminated.
+ * This allows matching e.g.: "libc-2.25.so\0" with "libc\0".
+ * If name_len is 4, the comparision is between: "libc" and "libc".
+ */
+static bool
+str_match(const char *name, size_t name_len,
+		const char *expected)
+{
+	return name_len == strlen(expected) &&
+		strncmp(name, expected, name_len) == 0;
+}
+
+static const char *
+get_name_from_proc_maps(uintptr_t addr)
+{
+	static char paths[0x10000];
+	static char *next_path;
+	const char *path = NULL;
+
+	char line[0x2000];
+	FILE *maps;
+
+	if (next_path == NULL)
+		next_path = paths;
+
+	if ((paths + sizeof(paths)) - next_path < 0x1000)
+		return NULL;
+
+	if ((maps = fopen("/proc/self/maps", "r")) == NULL)
+		return NULL;
+
+	while ((fgets(line, sizeof(line), maps)) != NULL) {
+		unsigned char *start;
+		unsigned char *end;
+		char perms[5];
+		unsigned long dummy[4];
+
+		if (sscanf(line, "%p-%p %s %lx %lx:%lx %lu %s",
+		    (void **)&start, (void **)&end, perms,
+		    dummy, dummy + 1, dummy + 2, dummy + 3,
+		    next_path) != 8)
+			break;
+
+		if ((uintptr_t)start == addr) {
+			path = next_path;
+			next_path += strlen(next_path) + 1;
+			break;
+		}
+	}
+
+	fclose(maps);
+
+	return path;
+}
+
+static const char *
+get_object_path(const struct dl_phdr_info *info, uintptr_t addr)
+{
+	if (info->dlpi_name != NULL && info->dlpi_name[0] != '\0')
+		return info->dlpi_name;
+	else
+		return get_name_from_proc_maps(addr);
+}
+
+/*
+ * should_patch_object
+ * Decides whether a particular loaded object should should be targeted for
+ * hotpatching.
+ * Always skipped: [vdso], and the syscall_intercept library itself.
+ * Besides these two, if patch_all_objs is true, everything object is
+ * a target. When patch_all_objs is false, only libraries that are parts of
+ * the glibc implementation are targeted, i.e.: libc and libpthread.
+ */
+static bool
+should_patch_object(uintptr_t addr, const char *path)
+{
+	static const char self[] = "libsyscall_intercept";
+	static const char libc[] = "libc";
+	static const char pthr[] = "libpthread";
+	static const char caps[] = "libcapstone";
+
+	if (addr == (uintptr_t)vdso_addr)
+		return false;
+
+	const char *name = get_lib_short_name(path);
+	size_t len = strcspn(name, "-.");
+
+	if (len == 0)
+		return false;
+
+	if (str_match(name, len, self) || str_match(name, len, caps))
+		return false;
+
+	if (str_match(name, len, libc)) {
+		libc_found = true;
+		return true;
+	}
+
+	if (patch_all_objs)
+		return true;
+
+	if (str_match(name, len, pthr))
+		return true;
+
+	return false;
+}
+
+static uintptr_t
+object_base_addr(struct dl_phdr_info *info)
+{
+	const Elf64_Phdr *pheaders = info->dlpi_phdr;
+
+	for (Elf64_Word i = 0; i < info->dlpi_phnum; ++i) {
+		if (pheaders[i].p_offset == 0)
+			return info->dlpi_addr + pheaders[i].p_vaddr;
+	}
+	return 0; /* not found */
+}
+
+/*
+ * analyze_object
+ * Look at a library loaded into the current process, and determine as much as
+ * possible about it. The disassembling, allocations are initiated here.
+ *
+ * This is a callback function, passed to dl_iterate_phdr(3).
+ * data and size are just unused callback arguments.
+ */
+static int
+analyze_object(struct dl_phdr_info *info, size_t size, void *data)
+{
+	(void) data;
+	(void) size;
+	const char *path;
+	uintptr_t base_addr;
+
+	if ((base_addr = object_base_addr(info)) == 0)
+		return 0;
+
+	char buf[128];
+	sprintf(buf, "----%p----\n", (void *)base_addr);
+
+	if ((path = get_object_path(info, base_addr)) == NULL)
+		return 0;
+
+	if (!should_patch_object(base_addr, path))
+		return 0;
+
+	struct intercept_desc *patches = allocate_next_obj_desc();
+
+	patches->base_addr = (unsigned char *)base_addr;
+	patches->load_offset = (unsigned char *)info->dlpi_addr;
+	patches->path = path;
+	patches->c_destination = (void *)((uintptr_t)&intercept_routine);
+	find_syscalls(patches);
+	allocate_trampoline_table(patches);
+	create_patch_wrappers(patches);
+
+	return 0;
+}
+
 /*
  * intercept - This is where the highest level logic of hotpatching
  * is described. Upon startup, this routine looks for libc, and libpthread.
  * If these libraries are found in the process's address space, they are
  * patched.
- * The reason to look for these two libraries, is that these two are essential
- * parts of the glibc implementation, containing a lot of syscall instructions
- * most users would care to override. Some other parts of glibc (e.g.: libm)
- * don't contain syscalls - at least not ones that many would care about.
- * Other libraries are expected to never issue any syscalls directly, and are
- * not patched here.
  */
 void
 intercept(void)
 {
-	bool pthreads_available;
-
-	glibc_patches.c_destination =
-	    (void *)((uintptr_t)&intercept_routine);
-	pthreads_patches.c_destination =
-	    (void *)((uintptr_t)&intercept_routine);
+	vdso_addr = (void *)(uintptr_t)getauxval(AT_SYSINFO_EHDR);
+	patch_all_objs = (getenv("INTERCEPT_ALL_OBJS") != NULL);
 	intercept_setup_log(getenv("INTERCEPT_LOG"),
 			getenv("INTERCEPT_LOG_TRUNC"));
+	log_header();
+	init_patcher();
 
-	if (find_glibc_dl() != 0) {
+	dl_iterate_phdr(analyze_object, NULL);
+	if (!libc_found) {
 		intercept_logs("libc not found");
 		intercept_log_close();
 		return;
 	}
-
-	init_patcher();
-
-	log_header();
-
-	glibc_patches.dlinfo = libc_dlinfo;
-	find_syscalls(&glibc_patches);
-	allocate_trampoline_table(&glibc_patches);
-	create_patch_wrappers(&glibc_patches);
-
-	pthreads_available = (find_libpthread_dl() == 0);
-
-	if (pthreads_available) {
-		pthreads_patches.dlinfo = pthreads_dlinfo;
-		find_syscalls(&pthreads_patches);
-		allocate_trampoline_table(&pthreads_patches);
-		create_patch_wrappers(&pthreads_patches);
-		activate_patches(&pthreads_patches);
-	} else {
-		intercept_logs("libpthread not found");
-	}
-
 	mprotect_asm_wrappers();
-	activate_patches(&glibc_patches);
-	if (pthreads_available)
-		activate_patches(&pthreads_patches);
+	for (unsigned i = 0; i < objs_count; ++i)
+		activate_patches(objs + i);
 }
 
 /*
@@ -158,57 +332,6 @@ log_header(void)
 		"paste $tempfile2 $0 ; exit 0\n";
 
 	intercept_log(self_decoder, sizeof(self_decoder) - 1);
-}
-
-/*
- * find_glibc_dl - look for libc
- */
-static int
-find_glibc_dl(void)
-{
-	/* Assume the library that provides fopen is glibc */
-
-	if (!dladdr((void *)((uintptr_t)&fopen), &libc_dlinfo))
-		return -1;
-
-	if (libc_dlinfo.dli_fbase == NULL)
-		return -1;
-
-	if (libc_dlinfo.dli_fname == NULL)
-		return -1;
-
-	return 0;
-}
-
-/*
- * find_libpthread_dl - look for libpthread
- * Returns zero if pthreads is found. It is required to have libpthread
- * loaded in order to intercept syscalls.
- */
-static int
-find_libpthread_dl(void)
-{
-	/*
-	 * Assume the library that provides pthread_create is libpthread.
-	 * Use dlsym instead of &pthread_create, as that would abort the
-	 * program if libpthread is not actually loaded.
-	 */
-
-	void *pcreate_addr = dlsym(RTLD_DEFAULT, "pthread_create");
-
-	if (pcreate_addr == NULL)
-		return -1;
-
-	if (!dladdr(pcreate_addr, &pthreads_dlinfo))
-		return -1;
-
-	if (pthreads_dlinfo.dli_fbase == NULL)
-		return -1;
-
-	if (pthreads_dlinfo.dli_fname == NULL)
-		return -1;
-
-	return 0;
 }
 
 /*
