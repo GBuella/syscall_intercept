@@ -41,6 +41,7 @@
 #include <elf.h>
 #include <unistd.h>
 #include <dlfcn.h>
+#include <link.h>
 
 #include "disasm_wrapper.h"
 
@@ -131,8 +132,17 @@ struct intercept_desc {
 	 */
 	bool uses_trampoline_table;
 
-	/* Storing the Dl_info returned by dladdr(3) */
-	Dl_info dlinfo;
+	/* where it is loaded in vmem */
+	unsigned char *base_addr;
+
+	/*
+	 * delta between vmem addresses and addresses in symbol tables,
+	 * non-zero for dynamic objects
+	 */
+	unsigned char *load_offset;
+
+	/* where the object is in fs */
+	const char *path;
 
 	/*
 	 * Some sections of the library from which information
