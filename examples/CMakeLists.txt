@@ -31,4 +31,4 @@
 
 add_library(icap SHARED icap.c)
 
-target_link_libraries(icap syscall_intercept_shared)
+target_link_libraries(icap PRIVATE syscall_intercept_shared)
