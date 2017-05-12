@@ -35,6 +35,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdint.h>
+#include <inttypes.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -86,7 +87,7 @@ add_text_info(struct intercept_desc *desc, const Elf64_Shdr *header,
 		Elf64_Half index)
 {
 	desc->text_offset = header->sh_offset;
-	desc->text_start = desc->base_addr + header->sh_offset;
+	desc->text_start = desc->load_offset + header->sh_offset;
 	desc->text_end = desc->text_start + header->sh_size - 1;
 	desc->text_section_index = index;
 }
@@ -851,7 +852,12 @@ find_skip_ranges(struct intercept_desc *desc)
 void
 find_syscalls(struct intercept_desc *desc)
 {
-	debug_dump("find_syscalls in %s\n", desc->path);
+	debug_dump("find_syscalls in %s "
+	    "at base_addr 0x%016" PRIxPTR " "
+	    "load_offset 0x%016" PRIxPTR "\n",
+	    desc->path,
+	    (uintptr_t)desc->base_addr,
+	    (uintptr_t)desc->load_offset);
 
 	desc->count = 0;
 
