@@ -292,9 +292,6 @@ should_patch_object(uintptr_t addr, const char *path)
  * The p_offset field describes the offset of a segment in the loaded object. If
  * this is zero, then the section is at the beginning of the object file.
  *
- *
- *
- *
  * Program header struct from elf.h:
  *
  * typedef struct
@@ -309,6 +306,46 @@ should_patch_object(uintptr_t addr, const char *path)
  *   Elf64_Xword p_align;    Segment alignment
  * } Elf64_Phdr;
  *
+ * E.g. a position independent executable, and a non-PIE executable:
+ *
+ * +----------------------------------------------------------------------------
+ * | $ echo "int main(){}" | cc -xc - -o dummy -pie
+ * |
+ * | $ readelf -l dummy | grep "LOAD\|Offset\|file type"
+ * | Elf file type is DYN (Shared object file)
+ * |  Type           Offset             VirtAddr           PhysAddr
+ * |  LOAD           0x0000000000000000 0x0000000000000000 0x0000000000000000
+ * |
+ * | $ cat intercept.sh
+ * | INTERCEPT_ALL_OBJS=1 INTERCEPT_DEBUG_DUMP=1 \
+ * | LD_PRELOAD=./libsyscall_intercept.so.0.1.0 \
+ * |     $1 2>&1 | grep find_syscall
+ * |
+ * | $ ./intercept.sh ./dummy | grep -o "dummy.*$"
+ * |
+ * |
+ * |
+ * |
+ * |
+ * +----------------------------------------------------------------------------
+ *
+ * +---------------------------------------------------------------------------+
+ * | $ echo "int main(){}" | cc -xc - -o dummy -non-pie
+ * |
+ * | $ readelf -l dummy | grep "LOAD\|Offset\|file type"
+ * | Elf file type is EXEC (Executable file)
+ * |  Type           Offset             VirtAddr           PhysAddr
+ * |  LOAD           0x0000000000000000 0x0000000000400000 0x0000000000400000
+ * |
+ * | $ ./intercept.sh ./dummy | grep -o "dummy.*$"
+ * | dummy at base_addr 0x0000000000000000 load offset 0x0000000000400000
+ * |
+ * |
+ * |
+ * |
+ * +---------------------------------------------------------------------------+
+ *
+ * Notice the difference between the VirtAddr fields in the two examples above.
  */
 static uintptr_t
 object_load_offset(struct dl_phdr_info *info)
@@ -316,11 +353,13 @@ object_load_offset(struct dl_phdr_info *info)
 	const Elf64_Phdr *pheaders = info->dlpi_phdr;
 
 	for (Elf64_Word i = 0; i < info->dlpi_phnum; ++i) {
-		if (pheaders[i].p_offset == 0)
+		if (pheaders[i].p_offset == 0 && pheaders[i].p_vaddr != 0)
 			return info->dlpi_addr + pheaders[i].p_vaddr;
 	}
 
-	return 0; /* not found */
+	/* not found, but dlpi_addr is generally useful, if non-zero */
+
+	return info->dlpi_addr;
 }
 
 /*
