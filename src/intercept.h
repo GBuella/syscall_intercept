@@ -132,14 +132,11 @@ struct intercept_desc {
 	 */
 	bool uses_trampoline_table;
 
-	/* where it is loaded in vmem */
-	unsigned char *base_addr;
-
 	/*
 	 * delta between vmem addresses and addresses in symbol tables,
 	 * non-zero for dynamic objects
 	 */
-	unsigned char *load_offset;
+	unsigned char *base_addr;
 
 	/* where the object is in fs */
 	const char *path;

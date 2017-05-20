@@ -171,3 +171,29 @@ add_test(NAME "filter_negative"
 	-P ${CMAKE_CURRENT_SOURCE_DIR}/check_filter.cmake)
 set_tests_properties("filter_negative"
 	PROPERTIES PASS_REGULAR_EXPRESSION "disallowed")
+
+add_library(intercept_sys_write SHARED intercept_sys_write.c)
+target_link_libraries(hook_test_preload PRIVATE syscall_intercept_shared)
+
+add_executable(executable_with_syscall_pie executable_with_syscall.s)
+if(HAS_NOUNUSEDARG)
+	target_compile_options(executable_with_syscall_pie BEFORE
+		PRIVATE "-Wno-unused-command-line-argument")
+endif()
+set_target_properties(executable_with_syscall_pie
+			PROPERTIES POSITION_INDEPENDENT_CODE True)
+target_compile_options(executable_with_syscall_pie PRIVATE "-pie")
+target_link_libraries(executable_with_syscall_pie
+		PRIVATE "-pie" intercept_sys_write)
+
+add_executable(executable_with_syscall_no_pie executable_with_syscall.s)
+if(HAS_NOUNUSEDARG)
+	target_compile_options(executable_with_syscall_no_pie BEFORE
+		PRIVATE "-Wno-unused-command-line-argument")
+endif()
+set_target_properties(executable_with_syscall_no_pie
+			PROPERTIES POSITION_INDEPENDENT_CODE False)
+target_compile_options(executable_with_syscall_no_pie PRIVATE "-no-pie")
+target_link_libraries(executable_with_syscall_no_pie
+		PRIVATE "-no-pie" intercept_sys_write)
+

@@ -197,13 +197,14 @@ get_name_from_proc_maps(uintptr_t addr)
 
 	while ((fgets(line, sizeof(line), maps)) != NULL) {
 		unsigned char *start;
+		unsigned char *end;
 
 		/* Read the path into next_path */
-		if (sscanf(line, "%p-%*p %*s %*x %*x:%*x %*u %s",
-		    (void **)&start, next_path) != 2)
+		if (sscanf(line, "%p-%p %*s %*x %*x:%*x %*u %s",
+		    (void **)&start, (void **)&end, next_path) != 2)
 			break;
 
-		if ((uintptr_t)start == addr) {
+		if ((uintptr_t)start <= addr && addr < (uintptr_t)end) {
 			/*
 			 * Object found, settin the return value.
 			 * Adjusting the next_path pointer to point past the
@@ -223,6 +224,41 @@ get_name_from_proc_maps(uintptr_t addr)
 }
 
 /*
+ * get_any_used_vaddr - find a virtual address that is expected to
+ * be a used for the object file mapped into memory.
+ *
+ * An Elf64_Phdr struct contains information about a segment in an on object
+ * file. This routine looks for a segment with type LOAD, that has a non-zero
+ * size in memory. The p_vaddr field contains the virtual address where this
+ * segment should be loaded to. This of course is relative to the base address.
+ *
+ * typedef struct
+ * {
+ *   Elf64_Word p_type;			Segment type
+ *   Elf64_Word p_flags;		Segment flags
+ *   Elf64_Off p_offset;		Segment file offset
+ *   Elf64_Addr p_vaddr;		Segment virtual address
+ *   Elf64_Addr p_paddr;		Segment physical address
+ *   Elf64_Xword p_filesz;		Segment size in file
+ *   Elf64_Xword p_memsz;		Segment size in memory
+ *   Elf64_Xword p_align;		Segment alignment
+ * } Elf64_Phdr;
+ *
+ */
+static uintptr_t
+get_any_used_vaddr(const struct dl_phdr_info *info)
+{
+	const Elf64_Phdr *pheaders = info->dlpi_phdr;
+
+	for (Elf64_Word i = 0; i < info->dlpi_phnum; ++i) {
+		if (pheaders[i].p_type == PT_LOAD && pheaders[i].p_memsz != 0)
+			return info->dlpi_addr + pheaders[i].p_vaddr;
+	}
+
+	return 0; /* not found */
+}
+
+/*
  * get_object_path - attempt to find the path of the object in the
  * filesystem.
  *
@@ -230,12 +266,16 @@ get_name_from_proc_maps(uintptr_t addr)
  * but sometimes that does not conain it.
  */
 static const char *
-get_object_path(const struct dl_phdr_info *info, uintptr_t addr)
+get_object_path(const struct dl_phdr_info *info)
 {
-	if (info->dlpi_name != NULL && info->dlpi_name[0] != '\0')
+	if (info->dlpi_name != NULL && info->dlpi_name[0] != '\0') {
 		return info->dlpi_name;
-	else
+	} else {
+		uintptr_t addr = get_any_used_vaddr(info);
+		if (addr == 0)
+			return NULL;
 		return get_name_from_proc_maps(addr);
+	}
 }
 
 /*
@@ -282,82 +322,6 @@ should_patch_object(uintptr_t addr, const char *path)
 }
 
 /*
- * object_load_offset - find where the object is currently mapped into memory
- *
- * The p_offset field describes the offset of a segment in the loaded object. If
- * this is zero, then the section is at the beginning of the object file.
- *
- * Program header struct from elf.h:
- *
- * typedef struct
- * {
- *   Elf64_Word p_type;	     Segment type
- *   Elf64_Word p_flags;     Segment flags
- *   Elf64_Off p_offset;     Segment file offset
- *   Elf64_Addr p_vaddr;     Segment virtual address
- *   Elf64_Addr p_paddr;     Segment physical address
- *   Elf64_Xword p_filesz;   Segment size in file
- *   Elf64_Xword p_memsz;    Segment size in memory
- *   Elf64_Xword p_align;    Segment alignment
- * } Elf64_Phdr;
- *
- * E.g. a position independent executable, and a non-PIE executable:
- *
- * +----------------------------------------------------------------------------
- * | $ echo "int main(){}" | cc -xc - -o dummy -pie
- * |
- * | $ readelf -l dummy | grep "LOAD\|Offset\|file type"
- * | Elf file type is DYN (Shared object file)
- * |  Type           Offset             VirtAddr           PhysAddr
- * |  LOAD           0x0000000000000000 0x0000000000000000 0x0000000000000000
- * |
- * | $ cat intercept.sh
- * | INTERCEPT_ALL_OBJS=1 INTERCEPT_DEBUG_DUMP=1 \
- * | LD_PRELOAD=./libsyscall_intercept.so.0.1.0 \
- * |     $1 2>&1 | grep find_syscall
- * |
- * | $ ./intercept.sh ./dummy | grep -o "dummy.*$"
- * |
- * |
- * |
- * |
- * |
- * +----------------------------------------------------------------------------
- *
- * +---------------------------------------------------------------------------+
- * | $ echo "int main(){}" | cc -xc - -o dummy -non-pie
- * |
- * | $ readelf -l dummy | grep "LOAD\|Offset\|file type"
- * | Elf file type is EXEC (Executable file)
- * |  Type           Offset             VirtAddr           PhysAddr
- * |  LOAD           0x0000000000000000 0x0000000000400000 0x0000000000400000
- * |
- * | $ ./intercept.sh ./dummy | grep -o "dummy.*$"
- * | dummy at base_addr 0x0000000000000000 load offset 0x0000000000400000
- * |
- * |
- * |
- * |
- * +---------------------------------------------------------------------------+
- *
- * Notice the difference between the VirtAddr fields in the two examples above.
- */
-static uintptr_t
-object_load_offset(struct dl_phdr_info *info)
-{
-	const Elf64_Phdr *pheaders = info->dlpi_phdr;
-
-	for (Elf64_Word i = 0; i < info->dlpi_phnum; ++i) {
-		if (pheaders[i].p_offset == 0 && pheaders[i].p_vaddr != 0)
-			return info->dlpi_addr + pheaders[i].p_vaddr;
-	}
-
-	/* not found, but dlpi_addr is generally useful, if non-zero */
-
-	return info->dlpi_addr;
-}
-
-/*
  * analyze_object
  * Look at a library loaded into the current process, and determine as much as
  * possible about it. The disassembling, allocations are initiated here.
@@ -384,21 +348,16 @@ analyze_object(struct dl_phdr_info *info, size_t size, void *data)
 	(void) data;
 	(void) size;
 	const char *path;
-	uintptr_t load_offset;
 
-	if ((load_offset = object_load_offset(info)) == 0)
+	if ((path = get_object_path(info)) == NULL)
 		return 0;
 
-	if ((path = get_object_path(info, load_offset)) == NULL)
-		return 0;
-
-	if (!should_patch_object(load_offset, path))
+	if (!should_patch_object(info->dlpi_addr, path))
 		return 0;
 
 	struct intercept_desc *patches = allocate_next_obj_desc();
 
 	patches->base_addr = (unsigned char *)info->dlpi_addr;
-	patches->load_offset = (unsigned char *)load_offset;
 	patches->path = path;
 	patches->c_destination = (void *)((uintptr_t)&intercept_routine);
 	find_syscalls(patches);

@@ -216,7 +216,6 @@ main(int argc, char **argv)
 	 * these variables would refer to libc.
 	 */
 	patches.base_addr = lib_in.info.dli_fbase;
-	patches.load_offset = lib_in.info.dli_fbase;
 	patches.path = lib_in.info.dli_fname;
 	patches.uses_trampoline_table = true;
 	patches.trampoline_table = lib_in.mock_trampoline_table;

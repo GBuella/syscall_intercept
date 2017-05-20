@@ -87,7 +87,7 @@ add_text_info(struct intercept_desc *desc, const Elf64_Shdr *header,
 		Elf64_Half index)
 {
 	desc->text_offset = header->sh_offset;
-	desc->text_start = desc->load_offset + header->sh_offset;
+	desc->text_start = desc->base_addr + header->sh_addr;
 	desc->text_end = desc->text_start + header->sh_size - 1;
 	desc->text_section_index = index;
 }
@@ -100,27 +100,27 @@ add_text_info(struct intercept_desc *desc, const Elf64_Shdr *header,
 static void
 find_sections(struct intercept_desc *desc, long fd)
 {
-	const Elf64_Ehdr *elf_header;
+	Elf64_Ehdr elf_header;
 
 	desc->symbol_tables.count = 0;
 	desc->rela_tables.count = 0;
 
-	elf_header = (const Elf64_Ehdr *)(desc->load_offset);
+	xread(fd, &elf_header, sizeof(elf_header));
 
-	Elf64_Shdr sec_headers[elf_header->e_shnum];
+	Elf64_Shdr sec_headers[elf_header.e_shnum];
 
-	xlseek(fd, elf_header->e_shoff, SEEK_SET);
-	xread(fd, sec_headers, elf_header->e_shnum * sizeof(Elf64_Shdr));
+	xlseek(fd, elf_header.e_shoff, SEEK_SET);
+	xread(fd, sec_headers, elf_header.e_shnum * sizeof(Elf64_Shdr));
 
-	char sec_string_table[sec_headers[elf_header->e_shstrndx].sh_size];
+	char sec_string_table[sec_headers[elf_header.e_shstrndx].sh_size];
 
-	xlseek(fd, sec_headers[elf_header->e_shstrndx].sh_offset, SEEK_SET);
+	xlseek(fd, sec_headers[elf_header.e_shstrndx].sh_offset, SEEK_SET);
 	xread(fd, sec_string_table,
-	    sec_headers[elf_header->e_shstrndx].sh_size);
+	    sec_headers[elf_header.e_shstrndx].sh_size);
 
 	bool text_section_found = false;
 
-	for (Elf64_Half i = 0; i < elf_header->e_shnum; ++i) {
+	for (Elf64_Half i = 0; i < elf_header.e_shnum; ++i) {
 		const Elf64_Shdr *section = &sec_headers[i];
 		char *name = sec_string_table + section->sh_name;
 
@@ -331,8 +331,9 @@ mark_jump(const struct intercept_desc *desc, const unsigned char *addr)
  * Read the .symtab or .dynsym section, which stores an array of Elf64_Sym
  * structs. Some of these symbols are functions in the .text section,
  * thus their entry points are jump destinations.
- * A symbol starts at offset st_value in the file, and this is its
- * exposed entry point as well.
+ *
+ * The st_value fields holds the virtual address of the symbol
+ * relative to the base address.
  *
  * The format of the entries:
  *
@@ -433,7 +434,7 @@ find_jumps_in_section_rela(struct intercept_desc *desc, Elf64_Shdr *section,
 
 /*
  * has_pow2_count
- * Checks if the number of patches in a struct intercept_desc
+ * Checks if the positive number of patches in a struct intercept_desc
  * is a power of two or not.
  */
 static bool
@@ -853,11 +854,9 @@ void
 find_syscalls(struct intercept_desc *desc)
 {
 	debug_dump("find_syscalls in %s "
-	    "at base_addr 0x%016" PRIxPTR " "
-	    "load_offset 0x%016" PRIxPTR "\n",
+	    "at base_addr 0x%016" PRIxPTR " ",
 	    desc->path,
-	    (uintptr_t)desc->base_addr,
-	    (uintptr_t)desc->load_offset);
+	    (uintptr_t)desc->base_addr);
 
 	desc->count = 0;
 
