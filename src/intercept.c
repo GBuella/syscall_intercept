@@ -202,13 +202,14 @@ get_name_from_proc_maps(uintptr_t addr)
 		return NULL;
 
 	while ((fgets(line, sizeof(line), maps)) != NULL) {
+		fputs(line, stderr);
 		unsigned char *start;
 		unsigned char *end;
 
 		/* Read the path into next_path */
 		if (sscanf(line, "%p-%p %*s %*x %*x:%*x %*u %s",
 		    (void **)&start, (void **)&end, next_path) != 3)
-			break;
+			continue;
 
 		if ((uintptr_t)start <= addr && addr < (uintptr_t)end) {
 			/*

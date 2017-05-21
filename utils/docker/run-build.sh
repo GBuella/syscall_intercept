@@ -49,7 +49,7 @@ cmake .. -DDEVELOPER_MODE=1 \
 		-DCMAKE_BUILD_TYPE=Debug \
 
 make
-ctest --output-on-failure
+ctest --output-on-failure -R prog_pie_intercept_all
 make install
 cd ..
 rm -r build
@@ -61,7 +61,7 @@ cmake .. -DCMAKE_INSTALL_PREFIX=/tmp/syscall_intercept \
 		-DCMAKE_BUILD_TYPE=Release \
 
 make
-ctest --output-on-failure
+ctest --output-on-failure -R prog_pie_intercept_all
 make install
 cd ..
 rm -r build
