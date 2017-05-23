@@ -30,9 +30,40 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/*
+ * hook_test_data.h -- defines some symbols/values to be used in
+ * hook_test.c (making syscalls) and in hook_test_preload.c (intercepting those
+ * same syscalls). This file defines variables with internal linkage, and
+ * compiler wanrs if they are not used in a TU. This is ugly usually, but
+ * these are really meant to be used in the two other files source files
+ * mentioned above.
+ * This header is not meant to be used anywhere else.
+ */
+
 #ifndef INTERCEPT_HOOK_TEST_DATA_H
 #define INTERCEPT_HOOK_TEST_DATA_H
 
+#include <unistd.h>
+#include <stdbool.h>
+
+/* arbitrary fd, expected not to conflict with any valid fd */
+static const int hook_test_fd = 8765;
+
 static const char dummy_data[] = "dummy_data";
+
+static const ssize_t hook_test_dummy_return_value = 5;
+
+static inline bool
+is_spurious_syscall(long syscall_number, long arg0)
+{
+#ifdef EXPECT_SPURIOUS_SYSCALLS
+	/* syscall originating from ASAN, gcov, etc... */
+	return syscall_number != SYS_write || arg0 != hook_test_fd;
+#else
+	(void) syscall_number;
+	(void) arg0;
+	return false;
+#endif
+}
 
 #endif
