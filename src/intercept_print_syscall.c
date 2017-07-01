@@ -30,65 +30,46 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef INTERCEPT_UTIL_H
-#define INTERCEPT_UTIL_H
+#include "intercept_util.h"
+#include "intercept.h"
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <sys/types.h>
+#include <sys/uio.h>
+
 
 /*
- * syscall_no_intercept - syscall without interception
+ * Log syscalls after intercepting, in a human readable ( as much as possible )
+ * format. The format is either:
  *
- * Call syscall_no_intercept to make syscalls
- * from the interceptor library, once glibc is already patched.
- * Don't use the syscall function from glibc, that
- * would just result in an infinite recursion.
- */
-long syscall_no_intercept(long syscall_number, ...);
-
-/*
- * xmmap_anon - get new memory mapping
+ * offset -- name(arguments...) = result
  *
- * Not intercepted - does not call libc.
- * Always succeeds if returns - aborts the process on failure.
- */
-void *xmmap_anon(size_t size);
-
-/*
- * xmremap - no fail mremap
- */
-void *xmremap(void *addr, size_t old, size_t new);
-
-/*
- * xmunmap - no fail munmap
- */
-void xmunmap(void *addr, size_t len);
-
-/*
- * xlseek - no fail lseek
+ * where the name is known, or
  *
- * Not intercepted - does not call libc.
- * Always succeeds if returns - aborts the process on failure.
- */
-long xlseek(long fd, unsigned long off, int whence);
-
-/*
- * xread - no fail read
+ * offset -- syscall(syscall_number, arguments...) = result
  *
- * Not intercepted - does not call libc.
- * Always succeeds reading size bytes returns - aborts the process on failure.
+ * where the name is not known.
+ *
+ * Each line starts with the offset of the syscall instruction in libc's ELF.
+ * This should be easy to pass to addr2line, to see in what symbol in libc
+ * the syscall was initiated.
+ *
+ * E.g.:
+ * 0xdaea2 -- fstat(1, 0x7ffd115206f0) = 0
+ *
+ * Each syscall should be logged after being executed, so the result can be
+ * logged as well.
  */
-void xread(long fd, void *buffer, size_t size);
-
-void intercept_setup_log(const char *path_base, const char *trunc);
-void intercept_log(const char *buffer, size_t len);
-
-void intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
+void
+intercept_print_syscall(struct syscall_log_line *line,
+			long nr, long arg0, long arg1,
 			long arg2, long arg3,
-			long arg4, long arg5, uint64_t syscall_offset,
-			enum intercept_log_result result_known, long result);
-void intercept_log_close(void);
+			long arg4, long arg5,
+			enum intercept_log_result result_known, long result)
+{
 
-#endif
+	for (int i = 0; i < max_iov_count; ++i)
+		iov[i].iov_base = buffer[i - 1];
+
+	iov[1].iov_len = sprintf(iov[1].iov_base, " ", syscall_offset);
+	iov[2].iov_base = buffer;
+	iov[2].iov_len = buf - buffer;
+}

@@ -47,6 +47,7 @@
 #include <stdarg.h>
 #include <sched.h>
 #include <linux/limits.h>
+#include <sys/uio.h>
 
 static long log_fd = -1;
 
@@ -568,6 +569,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 
 	char buffer[0x1000];
 	char *buf = buffer;
+
 
 	buf += sprintf(buf, "%s 0x%lx -- ", libpath, syscall_offset);
 
@@ -1506,9 +1508,42 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 
 	*buf++ = '\n';
 
-	intercept_log(buffer, (size_t)(buf - buffer));
+
+	struct syscall_log_line line;
+
+	intercept_print_syscall(&line, nr, arg0, arg1, arg2, arg3, arg4, arg5,
+			result_known, result);
+	print_syscall_prefix(&line, libpath, syscall_offset);
+
+	for (int i = 0; i < max_iov_count; ++i)
+		iov[i].iov_base = buffer[i - 1];
+
+	iov[1].iov_len = sprintf(iov[1].iov_base, " ", syscall_offset);
+	iov[2].iov_base = buffer;
+	iov[2].iov_len = buf - buffer;
+
+	syscall_no_intercept(SYS_writev, log_fd, line.iov, line.iov_count);
 }
 
+enum { MAX_IOV_COUNT = 16 };
+
+struct syscall_log_line {
+	struct iovec iov[MAX_IOV_COUNT];
+	int iov_count;
+	char buffer[MAX_IOV_COUNT - 1][0x80];
+}
+
+static void print_syscall_prefix(struct syscall_log_line *line,
+				const char  *libpath,
+				unsigned long syscall_offset)
+{
+	line->iov[0].iov_base = libpath;
+	line->iov[0].iov_len = strlen(libpath);
+	line->iov[1].iov_base = line->buffer[0];
+	line->iov[1].iov_len =
+	    sprintf(line->buffer[0], " 0x%lx -- ", syscall_offset);
+	line->iov_count = 2;
+}
 /*
  * intercept_log
  * Write a buffer to the log, with a specified length.

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2017, Intel Corporation
+ * Copyright 2017, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,65 +30,24 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef INTERCEPT_UTIL_H
-#define INTERCEPT_UTIL_H
+#ifndef INTERCEPT_PRINT_SYSCALL_H
+#define INTERCEPT_PRINT_SYSCALL_H
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <sys/types.h>
+#include <sys/uio.h>
 
-/*
- * syscall_no_intercept - syscall without interception
- *
- * Call syscall_no_intercept to make syscalls
- * from the interceptor library, once glibc is already patched.
- * Don't use the syscall function from glibc, that
- * would just result in an infinite recursion.
- */
-long syscall_no_intercept(long syscall_number, ...);
+enum intercept_syscall_result_known { KNOWN, UNKNOWN };
 
-/*
- * xmmap_anon - get new memory mapping
- *
- * Not intercepted - does not call libc.
- * Always succeeds if returns - aborts the process on failure.
- */
-void *xmmap_anon(size_t size);
-
-/*
- * xmremap - no fail mremap
- */
-void *xmremap(void *addr, size_t old, size_t new);
-
-/*
- * xmunmap - no fail munmap
- */
-void xmunmap(void *addr, size_t len);
-
-/*
- * xlseek - no fail lseek
- *
- * Not intercepted - does not call libc.
- * Always succeeds if returns - aborts the process on failure.
- */
-long xlseek(long fd, unsigned long off, int whence);
-
-/*
- * xread - no fail read
- *
- * Not intercepted - does not call libc.
- * Always succeeds reading size bytes returns - aborts the process on failure.
- */
-void xread(long fd, void *buffer, size_t size);
-
-void intercept_setup_log(const char *path_base, const char *trunc);
-void intercept_log(const char *buffer, size_t len);
-
-void intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
+char *intercept_print_syscall(size_t size, char buffer[static size],
+			long nr, long arg0, long arg1,
 			long arg2, long arg3,
-			long arg4, long arg5, uint64_t syscall_offset,
-			enum intercept_log_result result_known, long result);
-void intercept_log_close(void);
+			long arg4, long arg5,
+			enum intercept_syscall_result_known result_known,
+			long result);
+
+struct syscall_log_line {
+	struct iovec iov[MAX_IOV_COUNT];
+	int iov_count;
+	char buffer[MAX_IOV_COUNT - 1][0x80];
+};
 
 #endif
