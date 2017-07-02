@@ -38,7 +38,6 @@ include(CheckFunctionExists)
 if (NOT CMAKE_VERSION VERSION_LESS 3.1.0)
 	set(CMAKE_C_STANDARD 99)
 	set(CMAKE_C_STANDARD_REQUIRED ON)
-	set(CMAKE_C_EXTENSIONS OFF)
 	set(CMAKE_CXX_STANDARD 11)
 else()
 	check_c_compiler_flag(-std=c99 HAS_STDC99)
@@ -156,3 +155,9 @@ set(CMAKE_REQUIRED_LIBRARIES ${orig_req_libs})
 if(NOT HAS_DLADDR)
 	message(FATAL_ERROR "dladdr not found")
 endif()
+
+check_c_source_compiles("
+_Static_assert(4 == 5 - 1, \"4 aint 5-1?\");
+int main(void) { return 0; }
+"
+ SYSCALL_INTERCEPT_STATIC_ASSERT_AVAILABLE)

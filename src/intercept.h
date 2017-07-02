@@ -43,6 +43,7 @@
 #include <dlfcn.h>
 #include <link.h>
 
+#include "macros.h"
 #include "disasm_wrapper.h"
 
 extern bool debug_dumps_on;

@@ -74,7 +74,7 @@ set(SOURCES_ASM
 	src/util.s)
 
 
-include_directories(include)
+include_directories(include ${CMAKE_CURRENT_BINARY_DIR})
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
@@ -128,6 +128,8 @@ set_target_properties(syscall_intercept_shared syscall_intercept_static
 	OUTPUT_NAME syscall_intercept)
 
 add_dependencies(syscall_intercept_base_c cpp_test)
+
+configure_file(src/macros.h.in macros.h)
 
 if(PERFORM_STYLE_CHECKS)
 	include(FindPerl)
