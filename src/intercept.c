@@ -99,11 +99,7 @@ static void log_header(void);
 void __attribute__((noreturn)) xlongjmp(long rip, long rsp, long rax);
 
 static void
-intercept_routine(long nr, long arg0, long arg1,
-			long arg2, long arg3,
-			long arg4, long arg5,
-			uint32_t syscall_offset,
-			const char *libpath,
+intercept_routine(struct syscall_desc *desc,
 			long return_to_asm_wrapper_syscall,
 			long return_to_asm_wrapper,
 			long (*clone_wrapper)(long, long, long, long, long),
@@ -484,11 +480,7 @@ xabort(const char *msg)
  *  from this function.
  */
 static void
-intercept_routine(long nr, long arg0, long arg1,
-			long arg2, long arg3,
-			long arg4, long arg5,
-			uint32_t syscall_offset,
-			const char *libpath,
+intercept_routine(struct syscall_desc *desc,
 			long return_to_asm_wrapper_syscall,
 			long return_to_asm_wrapper,
 			long (*clone_wrapper)(long, long, long, long, long),
@@ -497,19 +489,21 @@ intercept_routine(long nr, long arg0, long arg1,
 	long result;
 	int forward_to_kernel = true;
 
-	if (handle_magic_syscalls(nr, arg0, arg1, arg2, arg3, arg4, arg5) == 0)
+	if (handle_magic_syscalls(desc) == 0)
 		xlongjmp(return_to_asm_wrapper_syscall, rsp_in_asm_wrapper, 0);
 
-	intercept_log_syscall(libpath, nr, arg0, arg1, arg2, arg3, arg4, arg5,
-	    syscall_offset, UNKNOWN, 0);
+	intercept_log_syscall(desc, UNKNOWN, 0);
 
 	if (intercept_hook_point != NULL)
-		forward_to_kernel = intercept_hook_point(nr,
-		    arg0, arg1, arg2, arg3, arg4, arg5, &result);
+		forward_to_kernel = intercept_hook_point(desc->nr,
+		    desc->args[0], desc->args[1], desc->args[2],
+		    desc->args[3], desc->args[4], desc->args[5],
+		    &result);
 
-	if (nr == SYS_vfork || nr == SYS_rt_sigreturn) {
+	if (desc->nr == SYS_vfork || desc->nr == SYS_rt_sigreturn) {
 		/* can't handle these syscall the normal way */
-		xlongjmp(return_to_asm_wrapper_syscall, rsp_in_asm_wrapper, nr);
+		xlongjmp(return_to_asm_wrapper_syscall, rsp_in_asm_wrapper,
+		    desc->nr);
 	}
 
 	if (forward_to_kernel) {
@@ -525,15 +519,16 @@ intercept_routine(long nr, long arg0, long arg1,
 		 * the clone_child_intercept_routine instead, executing
 		 * it on the new child threads stack, then returns to libc.
 		 */
-		if (nr == SYS_clone && arg1 != 0)
-			result = clone_wrapper(arg0, arg1, arg2, arg3, arg4);
+		if (desc->nr == SYS_clone && desc->args[1] != 0)
+			result = clone_wrapper(desc->args[0], desc->args[1],
+			    desc->args[2], desc->args[3], desc->args[4]);
 		else
-			result = syscall_no_intercept(nr,
-			    arg0, arg1, arg2, arg3, arg4, arg5);
+			result = syscall_no_intercept(desc->nr,
+			    desc->args[0], desc->args[1], desc->args[2],
+			    desc->args[3], desc->args[4], desc->args[5]);
 	}
 
-	intercept_log_syscall(libpath, nr, arg0, arg1, arg2, arg3, arg4, arg5,
-	    syscall_offset, KNOWN, result);
+	intercept_log_syscall(desc, KNOWN, result);
 
 	xlongjmp(return_to_asm_wrapper, rsp_in_asm_wrapper, result);
 }

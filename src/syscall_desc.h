@@ -30,46 +30,49 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SYSCALL_INTERCEPT_WITHOUT_MAGIC_SYSCALLS
+#ifndef SYSCALL_DESC_H
+#define SYSCALL_DESC_H
 
+#include <stddef.h>
 #include <stdint.h>
-#include <string.h>
 
-#include "magic_syscalls.h"
-#include "intercept_util.h"
+#include "macros.h"
 
 /*
- * handle_magic_syscalls - this routine performs two tasks:
- * recognizes 'magic' syscalls, and, if executes commands based
- * on messages from 'magic' syscalls.
- * It returns zero if some magic syscall was handled,
- * -1 otherwise (i.e.: the syscall shall be treated as a regular syscall).
+ * The syscall_desc struct describes a syscall initiated by a syscall
+ * instruction (actually a jump instruction written in the place of
+ * a syscall).
+ *
+ * The syscall number and syscall arguments are stored as `long`, as
+ * is defined in the ABI. As of now, and in the foreseeable future
+ * the syscall_intercept library only works on Linux/x86_64, so these are
+ * assumed to be 64 bit values.
+ * The offset field contains the offset of the syscall instruction relative to
+ * the base address of an object file. The libpath pointer points to the path
+ * of this object file in the file system -- currently this path can be assumed
+ * to available for any syscall being intercepted.
+ *
+ * This struct does not indicate the actual number of meaningful syscall
+ * arguments. In the case of syscalls using fewer than six arguments, the rest
+ * of the contents of the args array is just filled with irrelevant values, that
+ * happened to be in the registers at the time of the syscall.
  */
-int
-handle_magic_syscalls(struct syscall_desc *desc)
-{
-	if (desc->nr != SYS_write)
-		return -1;
+struct syscall_desc {
+	long nr;
+	long args[6];
+	uint32_t offset;
+	const char *libpath;
+};
 
-	if (desc->args[0] != SYSCALL_INT_MAGIC_WRITE_FD)
-		return -1;
+/*
+ * The layout of struct syscall_desc must match the layout
+ * expected by the code in the intercept_template.s asm file.
+ */
+static_assert(sizeof(struct syscall_desc) == 8 * 9,
+		"syscall_desc layout error");
+static_assert(offsetof(struct syscall_desc, offset) == 8 * 7,
+		"syscall_desc layout error");
+static_assert(offsetof(struct syscall_desc, libpath) == 8 * 8,
+		"syscall_desc layout error");
 
-	const char *message = (void *)(uintptr_t)desc->args[1];
-	size_t len = (size_t)desc->args[2];
-
-	if (strncmp(message, start_log_message, len) == 0) {
-		const char *path = (const void *)(uintptr_t)desc->args[3];
-		const char *trunc = (const void *)(uintptr_t)desc->args[4];
-		intercept_setup_log(path, trunc);
-		return 0;
-	}
-
-	if (strncmp(message, stop_log_message, len) == 0) {
-		intercept_log_close();
-		return 0;
-	}
-
-	return -1;
-}
-
-#endif /* SYSCALL_INTERCEPT_WITHOUT_MAGIC_SYSCALLS */
+#endif

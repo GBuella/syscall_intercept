@@ -330,7 +330,7 @@ intercept_asm_wrapper_simd_save:
 .fill 32, 1, 0x90
 
 	pushq       %rbx
-	movq        %rsp, %r11
+	movq        %rsp, %r12
 
 	movq        %rbp, %rsp
 	subq        $0x548, %rsp
@@ -351,35 +351,6 @@ intercept_asm_wrapper_simd_save:
 L3:
 
 	/*
-	 * The following values pushed on the stack are
-	 * arguments of the C routine.
-	 * First we push value of rsp that should be restored
-	 * upon returning to this code.
-	 *
-	 * See: intercept_routine in intercept.c
-	 */
-	pushq       %r11 /* rsp_in_asm_wrapper */
-
-	leaq        L7(%rip), %r11
-	pushq       %r11 /* clone_wrapper */
-
-intercept_asm_wrapper_mov_return_addr_r11_no_syscall:
-.fill 10, 1, 0x90
-	pushq       %r11 /* return_to_asm_wrapper */
-
-intercept_asm_wrapper_mov_return_addr_r11_syscall:
-.fill 10, 1, 0x90
-	pushq       %r11 /* return_to_asm_wrapper_syscall */
-
-intercept_asm_wrapper_mov_libpath_r11:
-.fill 10, 1, 0x90
-	pushq       %r11 /* libpath */
-
-intercept_asm_wrapper_push_origin_addr:
-.fill 5, 1, 0x90 /* syscall_offset */
-
-
-	/*
 	 * Convert the arguments list to one used in
 	 * the linux x86_64 ABI. The reverse of what
 	 * is done syscall_no_intercept.
@@ -390,14 +361,43 @@ intercept_asm_wrapper_push_origin_addr:
 	 * C function expects arguments in:
 	 *   rdi, rsi, rdx, rcx, r8, r9, [rsp + 8]
 	 */
-	pushq       %r9
+intercept_asm_wrapper_mov_libpath_r11:
+.fill 10, 1, 0x90
+	pushq       %r11   /* syscall_desc.libpath */
 
-	movq        %r8, %r9
-	movq        %r10, %r8
-	movq        %rdx, %rcx
-	movq        %rsi, %rdx
-	movq        %rdi, %rsi
-	movq        %rax, %rdi
+intercept_asm_wrapper_push_origin_addr:
+.fill 5, 1, 0x90           /* syscall_desc.syscall_offset */
+
+	pushq       %r9    /* syscall_desc.args[5] */
+	pushq       %r8
+	pushq       %r10
+	pushq       %rdx
+	pushq       %rsi
+	pushq       %rdi   /* syscall_desc.args[0] */
+	pushq       %rax   /* syscall_desc.nr */
+	movq        %rsp, %rdi /* address of struct syscall_desc */
+
+	/*
+	 * The following values pushed on the stack are
+	 * arguments of the C routine.
+	 * First we push value of rsp that should be restored
+	 * upon returning to this code.
+	 *
+	 * See: intercept_routine in intercept.c
+	 */
+	movq        %r12, %r8 /* rsp_in_asm_wrapper */
+
+	leaq        L7(%rip), %rcx /* clone_wrapper */
+
+intercept_asm_wrapper_mov_return_addr_r11_no_syscall:
+.fill 10, 1, 0x90
+	movq        %r11, %rdx /* return_to_asm_wrapper */
+
+intercept_asm_wrapper_mov_return_addr_r11_syscall:
+.fill 10, 1, 0x90
+	movq        %r11, %rsi /* return_to_asm_wrapper_syscall */
+
+
 
 	/*
 	 * Move the faked return address into r11, so that it can be

@@ -44,6 +44,7 @@
 #include <link.h>
 
 #include "macros.h"
+#include "syscall_desc.h"
 #include "disasm_wrapper.h"
 
 extern bool debug_dumps_on;
