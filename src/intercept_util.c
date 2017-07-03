@@ -535,6 +535,286 @@ print_syscall(char *b, const char *name, unsigned args, ...)
 	return b;
 }
 
+struct syscall_format_entry {
+	const char *name;
+	unsigned (*arg_count)(struct syscall_desc *);
+	void (args[6])(char *, long arg);
+};
+
+static unsigned
+c0(struct syscall_desc *desc)
+{
+	(void) desc;
+	return 0;
+}
+
+static unsigned
+c1(struct syscall_desc *desc)
+{
+	(void) desc;
+	return 1;
+}
+
+static unsigned
+c2(struct syscall_desc *desc)
+{
+	(void) desc;
+	return 2;
+}
+
+static unsigned
+c3(struct syscall_desc *desc)
+{
+	(void) desc;
+	return 3;
+}
+
+static unsigned
+c4(struct syscall_desc *desc)
+{
+	(void) desc;
+	return 4;
+}
+
+static unsigned
+c5(struct syscall_desc *desc)
+{
+	(void) desc;
+	return 5;
+}
+
+static unsigned
+open_arg_count(struct syscall_desc *desc)
+{
+	if ((desc->args[1] & O_CREAT) != 0)
+		return 3;
+	else
+		return 2;
+}
+
+#define MAX_ARG_LEN 0x80
+
+static void
+f_dec(char buffer[static MAX_ARG_LEN], long *arg)
+{
+	return snprintf(buffer, MAX_ARG_LEN, "%ld", *arg);
+}
+
+static void
+f_oct_mode(char buffer[static MAX_ARG_LEN], long *arg)
+{
+	return snprintf(buffer, MAX_ARG_LEN, "0%lo", (unsigned long)*arg);
+}
+
+static void
+f_hex(char buffer[static MAX_ARG_LEN], long *arg)
+{
+	return snprintf(buffer, MAX_ARG_LEN, "0x%lx", unsigned long(*arg));
+}
+
+static void
+f_open_flags(char buffer[static MAX_ARG_LEN], long *arg)
+{
+	char *c = buffer;
+	long flags = *args;
+
+	*c = 0;
+
+	if (flags == 0)
+		return c + sprintf(c, "O_RDONLY");
+
+#ifdef O_EXEC
+	if ((flags & O_EXEC) == O_EXEC)
+		c += sprintf(c, "O_EXEC | ");
+#endif
+	if ((flags & O_RDWR) == O_RDWR)
+		c += sprintf(c, "O_RDWR | ");
+	if ((flags & O_WRONLY) == O_WRONLY)
+		c += sprintf(c, "O_WRONLY | ");
+	if ((flags & (O_WRONLY|O_RDWR)) == 0)
+		c += sprintf(c, "O_RDONLY | ");
+#ifdef O_SEARCH
+	if ((flags & O_SEARCH) = O_SEARCH)
+		c += sprintf(c, "O_SEARCH | ");
+#endif
+	if ((flags & O_APPEND) == O_APPEND)
+		c += sprintf(c, "O_APPEND | ");
+	if ((flags & O_CLOEXEC) == O_CLOEXEC)
+		c += sprintf(c, "O_CLOEXEC | ");
+	if ((flags & O_CREAT) == O_CREAT)
+		c += sprintf(c, "O_CREAT | ");
+	if ((flags & O_DIRECTORY) == O_DIRECTORY)
+		c += sprintf(c, "O_DIRECTORY | ");
+	if ((flags & O_DSYNC) == O_DSYNC)
+		c += sprintf(c, "O_DSYNC | ");
+	if ((flags & O_EXCL) == O_EXCL)
+		c += sprintf(c, "O_EXCL | ");
+	if ((flags & O_NOCTTY) == O_NOCTTY)
+		c += sprintf(c, "O_NOCTTY | ");
+	if ((flags & O_NOFOLLOW) == O_NOFOLLOW)
+		c += sprintf(c, "O_NOFOLLOW | ");
+	if ((flags & O_NONBLOCK) == O_NONBLOCK)
+		c += sprintf(c, "O_NONBLOCK | ");
+	if ((flags & O_RSYNC) == O_RSYNC)
+		c += sprintf(c, "O_RSYNC | ");
+	if ((flags & O_SYNC) == O_SYNC)
+		c += sprintf(c, "O_SYNC | ");
+	if ((flags & O_TRUNC) == O_TRUNC)
+		c += sprintf(c, "O_TRUNC | ");
+#ifdef O_TTY_INIT
+	if ((flags & O_TTY_INIT) == O_TTY_INIT)
+		c += sprintf(c, "O_TTY_INIT | ");
+#endif
+
+#ifdef O_EXEC
+	flags &= ~O_EXEC;
+#endif
+#ifdef O_TTY_INIT
+	flags &= ~O_TTY_INIT;
+#endif
+#ifdef O_SEARCH
+	flags &= ~O_SEARCH;
+#endif
+
+	flags &= ~(O_RDONLY | O_RDWR | O_WRONLY | O_APPEND |
+	    O_CLOEXEC | O_CREAT | O_DIRECTORY | O_DSYNC | O_EXCL |
+	    O_NOCTTY | O_NOFOLLOW | O_NONBLOCK | O_RSYNC | O_SYNC |
+	    O_TRUNC);
+
+	if (flags != 0) {
+		/*
+		 * Some values in the flag were not recognized, just print the
+		 * raw number.
+		 * e.g.: "O_RDONLY | O_NONBLOCK | 0x9876"
+		 */
+		c += sprintf(c, "0x%dx", flags);
+	} else if (c != buffer) {
+		/*
+		 * All bits in flag were parsed, and the pointer c does not
+		 * point to the start of the buffer, therefore some text was
+		 * written already, with a separator on the end. Remove the
+		 * trailing three characters: " | "
+		 *
+		 * e.g.: "O_RDONLY | O_NONBLOCK | " -> "O_RDONLY | O_NONBLOCK"
+		 */
+		c -= 3;
+		*c = 0;
+	}
+}
+
+static void
+f_buf_after_size(char buffer[static MAX_ARG_LEN], long *arg)
+{
+	size_t size = (size_t)arg[-1];
+	xprint_escape(buffer, (const char *)arg, MAX_ARG_LEN, false, size);
+}
+
+static void
+f_buf_before_size(char buffer[static MAX_ARG_LEN], long *arg)
+{
+	size_t size = (size_t)arg[1];
+	xprint_escape(buffer, (const char *)arg, MAX_ARG_LEN, false, size);
+}
+
+static void
+f_cstr(char buffer[static MAX_ARG_LEN], long *arg)
+{
+	xprint_escape(buffer, (const char *)arg, MAX_ARG_LEN, true, 0);
+}
+
+static void
+f_clone_flags(char buffer[static MAX_ARG_LEN], long *arg)
+{
+	char *c = buffer;
+
+	*c = '\0';
+
+	if ((flags & CLONE_CHILD_CLEARTID) == CLONE_CHILD_CLEARTID)
+		c += sprintf(c, "CLONE_CHILD_CLEARTID | ");
+	if ((flags & CLONE_CHILD_SETTID) == CLONE_CHILD_SETTID)
+		c += sprintf(c, "CLONE_CHILD_SETTID | ");
+	if ((flags & CLONE_FILES) == CLONE_FILES)
+		c += sprintf(c, "CLONE_FILES | ");
+	if ((flags & CLONE_FS) == CLONE_FS)
+		c += sprintf(c, "CLONE_FS | ");
+	if ((flags & CLONE_IO) == CLONE_IO)
+		c += sprintf(c, "CLONE_IO | ");
+#ifdef CLONE_NEWCGROUP
+	if ((flags & CLONE_NEWCGROUP) == CLONE_NEWCGROUP)
+		c += sprintf(c, "CLONE_NEWCGROUP | ");
+#endif
+#ifdef CLONE_NEWIPC
+	if ((flags & CLONE_NEWIPC) == CLONE_NEWIPC)
+		c += sprintf(c, "CLONE_NEWIPC | ");
+#endif
+#ifdef CLONE_NEWNET
+	if ((flags & CLONE_NEWNET) == CLONE_NEWNET)
+		c += sprintf(c, "CLONE_NEWNET | ");
+#endif
+#ifdef CLONE_NEWNS
+	if ((flags & CLONE_NEWNS) == CLONE_NEWNS)
+		c += sprintf(c, "CLONE_NEWNS | ");
+#endif
+#ifdef CLONE_NEWPID
+	if ((flags & CLONE_NEWPID) == CLONE_NEWPID)
+		c += sprintf(c, "CLONE_NEWPID | ");
+#endif
+	if ((flags & CLONE_NEWUSER) == CLONE_NEWUSER)
+		c += sprintf(c, "CLONE_NEWUSER | ");
+#ifdef CLONE_NEWUTS
+	if ((flags & CLONE_NEWUTS) == CLONE_NEWUTS)
+		c += sprintf(c, "CLONE_NEWUTS | ");
+#endif
+	if ((flags & CLONE_PARENT) == CLONE_PARENT)
+		c += sprintf(c, "CLONE_PARENT | ");
+	if ((flags & CLONE_PARENT_SETTID) == CLONE_PARENT_SETTID)
+		c += sprintf(c, "CLONE_PARENT_SETTID | ");
+	if ((flags & CLONE_PTRACE) == CLONE_PTRACE)
+		c += sprintf(c, "CLONE_PTRACE | ");
+	if ((flags & CLONE_SETTLS) == CLONE_SETTLS)
+		c += sprintf(c, "CLONE_SETTLS | ");
+	if ((flags & CLONE_SIGHAND) == CLONE_SIGHAND)
+		c += sprintf(c, "CLONE_SIGHAND | ");
+	if ((flags & CLONE_SYSVSEM) == CLONE_SYSVSEM)
+		c += sprintf(c, "CLONE_SYSVSEM | ");
+	if ((flags & CLONE_THREAD) == CLONE_THREAD)
+		c += sprintf(c, "CLONE_THREAD | ");
+	if ((flags & CLONE_UNTRACED) == CLONE_UNTRACED)
+		c += sprintf(c, "CLONE_UNTRACED | ");
+	if ((flags & CLONE_VFORK) == CLONE_VFORK)
+		c += sprintf(c, "CLONE_VFORK | ");
+	if ((flags & CLONE_VM) == CLONE_VM)
+		c += sprintf(c, "CLONE_VM | ");
+
+	if (c != buffer) {
+		c -= 3;
+		*c = '\0';
+	} else {
+		c += sprintf(buffer, "%ld", flags);
+	}
+}
+
+static void
+f_fcntl_flags(char buffer[static MAX_ARG_LEN], long *arg)
+{
+	snprintf(buffer, MAX_ARG_LEN "%ld (%s)", cmd, fcntl_name(cmd));
+}
+
+
+/* Syscall Format macro, used only for initializing the below array */
+#define SF(name, count_func, ...) \
+	[SYS_##name] = {.name = #name, .arg_count = count_func, \
+		.args = {__VA_ARGS__,}}
+
+static const struct syscall_format_entry formats[] = {
+	SF(open, open_arg_count, f_path, f_open_flags, f_oct_mode),
+	SF(close, c1, f_dec),
+	SF(read, c3, f_dec, f_buf_before_size, f_dec),
+	SF(write, c3, f_dec, f_buf_before_size, f_dec),
+};
+
+#undef SF
+
 /*
  * Log syscalls after intercepting, in a human readable ( as much as possible )
  * format. The format is either:
