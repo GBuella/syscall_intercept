@@ -30,14 +30,21 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef SYSCALL_INTERCEPT_CAPSTONE_WRAPPER_H
+#define SYSCALL_INTERCEPT_CAPSTONE_WRAPPER_H
+
+#include "config.h"
+
 /*
  * The syscall_intercept library might be compiled with stricter warning
  * settings than what is by capstone developers. The system header pragma
  * is used to make sure some diagnostics triggered by the capstone header
  * don't break syscall_intercept build.
  */
-#ifdef HAS_GCC_PRAGMA_SYSH
+#ifdef SYSCALL_INTERCEPT_GCC_PRAGMA_SYSH
 #pragma GCC system_header
 #endif
 
 #include <capstone.h>
+
+#endif

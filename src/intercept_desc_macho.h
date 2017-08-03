@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2017, Intel Corporation
+ * Copyright 2017, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,49 +30,18 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-.global xlongjmp;
-#.type   xlongjmp, @function
+/*
+ * intercept_desc_macho.h - a few declarations used in libsyscall_intercept
+ * for decoding mach-o objects.
+ */
 
-.global has_ymm_registers;
-#.type   has_ymm_registers, @function
+#ifndef INTERCEPT_INTERCEPT_DESC_MACHO_H
+#define INTERCEPT_INTERCEPT_DESC_MACHO_H
 
-.global syscall_no_intercept;
-#.type   syscall_no_intercept, @function
+#include <mach-o/dyld.h>
 
-.text
+struct intercept_object_desc {
+	int dummy;
+};
 
-xlongjmp:
-	.cfi_startproc
-	movq        %rdx, %rax
-	movq        %rsi, %rsp
-	jmp         *%rdi
-	.cfi_endproc
-
-#.size   xlongjmp, .-xlongjmp
-
-has_ymm_registers:
-	.cfi_startproc
-	pushq       %rbx
-	movq        $0x1, %rax
-	cpuid
-	movq        %rcx, %rax
-	shrq        $28, %rax
-	andq        $1, %rax
-	popq        %rbx
-	retq
-	.cfi_endproc
-
-#.size   has_ymm_registers, .-has_ymm_registers
-
-syscall_no_intercept:
-	movq        %rdi, %rax  /* convert from linux ABI calling */
-	movq        %rsi, %rdi  /* convention to syscall calling convention */
-	movq        %rdx, %rsi
-	movq        %rcx, %rdx
-	movq        %r8, %r10
-	movq        %r9, %r8
-	movq        8(%rsp), %r9
-	syscall
-	ret
-
-#.size   syscall_no_intercept, .-syscall_no_intercept
+#endif

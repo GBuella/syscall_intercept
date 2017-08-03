@@ -30,49 +30,19 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-.global xlongjmp;
-#.type   xlongjmp, @function
+#ifndef INTERCEPT_LOG_H
+#define INTERCEPT_LOG_H
 
-.global has_ymm_registers;
-#.type   has_ymm_registers, @function
+void intercept_setup_log(const char *path_base, const char *trunc);
+void intercept_log(const char *buffer, size_t len);
 
-.global syscall_no_intercept;
-#.type   syscall_no_intercept, @function
+enum intercept_log_result { KNOWN, UNKNOWN };
 
-.text
+void intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
+			long arg2, long arg3,
+			long arg4, long arg5, uint64_t syscall_offset,
+			enum intercept_log_result result_known, long result);
 
-xlongjmp:
-	.cfi_startproc
-	movq        %rdx, %rax
-	movq        %rsi, %rsp
-	jmp         *%rdi
-	.cfi_endproc
+void intercept_log_close(void);
 
-#.size   xlongjmp, .-xlongjmp
-
-has_ymm_registers:
-	.cfi_startproc
-	pushq       %rbx
-	movq        $0x1, %rax
-	cpuid
-	movq        %rcx, %rax
-	shrq        $28, %rax
-	andq        $1, %rax
-	popq        %rbx
-	retq
-	.cfi_endproc
-
-#.size   has_ymm_registers, .-has_ymm_registers
-
-syscall_no_intercept:
-	movq        %rdi, %rax  /* convert from linux ABI calling */
-	movq        %rsi, %rdi  /* convention to syscall calling convention */
-	movq        %rdx, %rsi
-	movq        %rcx, %rdx
-	movq        %r8, %r10
-	movq        %r9, %r8
-	movq        8(%rsp), %r9
-	syscall
-	ret
-
-#.size   syscall_no_intercept, .-syscall_no_intercept
+#endif

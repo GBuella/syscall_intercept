@@ -29,7 +29,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-cmake_minimum_required(VERSION 2.8.7)
+cmake_minimum_required(VERSION 3.0)
 project(syscall_intercept C CXX ASM)
 
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
@@ -63,9 +63,11 @@ include(cmake/find_capstone.cmake)
 # main source files - intentionally excluding src/entry.c
 set(SOURCES_C
 	src/disasm_wrapper.c
+	src/crawl_text.c
 	src/intercept.c
 	src/intercept_desc.c
 	src/intercept_util.c
+	src/intercept_log.c
 	src/patcher.c
 	src/magic_syscalls.c)
 
@@ -73,8 +75,23 @@ set(SOURCES_ASM
 	src/intercept_template.s
 	src/util.s)
 
+if(SYSCALL_INTERCEPT_ELF)
+	set(SOURCES_C
+		${SOURCES_C}
+		src/detect_elfs.c src/analyze_elfs.c)
+else()
+	if(SYSCALL_INTERCEPT_MACH_O)
+		set(SOURCES_C
+			${SOURCES_C}
+			src/detect_machos.c src/analyze_machos.c)
+	else()
+		message(FATAL_ERROR "Uknown object format")
+	endif()
+endif()
 
-include_directories(include)
+
+
+include_directories(include ${CMAKE_CURRENT_BINARY_DIR})
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
@@ -161,6 +178,8 @@ if(PERFORM_STYLE_CHECKS)
 
 	add_dependencies(check-license check_license_executable)
 endif()
+
+configure_file(config.h.in config.h)
 
 configure_file(libsyscall_intercept.pc.in libsyscall_intercept.pc)
 

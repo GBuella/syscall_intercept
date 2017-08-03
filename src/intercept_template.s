@@ -214,10 +214,10 @@
  */
 
 .global backtrace_placeholder;
-.type   backtrace_placeholder, @function
+#.type   backtrace_placeholder, @function
 
 .global backtrace_placeholder_2;
-.type   backtrace_placeholder_2, @function
+#.type   backtrace_placeholder_2, @function
 
 .global intercept_asm_wrapper_tmpl;
 .global intercept_asm_wrapper_simd_save;
@@ -273,7 +273,7 @@ backtrace_placeholder:
 	nop
 	.cfi_endproc
 
-.size   backtrace_placeholder, .-backtrace_placeholder
+#.size   backtrace_placeholder, .-backtrace_placeholder
 
 backtrace_placeholder_2:
 	.cfi_startproc
@@ -297,7 +297,7 @@ backtrace_placeholder_2:
 	nop
 	.cfi_endproc
 
-.size   backtrace_placeholder_2, .-backtrace_placeholder_2
+#.size   backtrace_placeholder_2, .-backtrace_placeholder_2
 
 intercept_asm_wrapper_tmpl:
 	nop

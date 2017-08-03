@@ -37,16 +37,26 @@
 #ifndef INTERCEPT_INTERCEPT_H
 #define INTERCEPT_INTERCEPT_H
 
+#include "config.h"
+
 #include <stdbool.h>
-#include <elf.h>
 #include <unistd.h>
 #include <dlfcn.h>
-#include <link.h>
+
+#ifdef SYSCALL_INTERCEPT_ELF
+#include "intercept_desc_elf.h"
+#elif defined(SYSCALL_INTERCEPT_MACH_O)
+#include "intercept_desc_macho.h"
+#else
+#error "Object format not specified"
+#endif
 
 #include "disasm_wrapper.h"
 
 extern bool debug_dumps_on;
-void debug_dump(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+extern bool patch_all_objs;
+extern bool libc_found;
+void debug_dump(const char *fmt, ...) FORMAT(printf, 1, 2);
 
 /*
  * Create wrapper functions to be called from glibc,
@@ -62,7 +72,7 @@ void intercept_patch_with_postfix(unsigned char *syscall_addr,
 
 #define INTERCEPTOR_EXIT_CODE 111
 
-__attribute__((noreturn)) void xabort(const char *);
+noreturn void xabort(const char *);
 
 struct range {
 	unsigned char *address;
@@ -117,21 +127,12 @@ struct patch_desc {
 
 void patch_apply(struct patch_desc *patch);
 
-/*
- * A section_list struct contains information about sections where
- * libsyscall_intercept looks for jump destinations among symbol addresses.
- * Generally, only two sections are used for this, so 16 should be enough
- * for the maximum number of headers to be stored.
- *
- * See the calls to the add_table_info routine in the intercept_desc.c source
- * file.
- */
-struct section_list {
-	Elf64_Half count;
-	Elf64_Shdr headers[0x10];
-};
-
 struct intercept_desc {
+	/* Platform specific data about an object file */
+	struct intercept_object_desc object;
+
+	/* where the object is in fs */
+	const char *path;
 
 	/*
 	 * uses_trampoline_table - For now this is decided runtime
@@ -140,30 +141,6 @@ struct intercept_desc {
 	 * flag, and just always use the trampoline table.
 	 */
 	bool uses_trampoline_table;
-
-	/*
-	 * delta between vmem addresses and addresses in symbol tables,
-	 * non-zero for dynamic objects
-	 */
-	unsigned char *base_addr;
-
-	/* where the object is in fs */
-	const char *path;
-
-	/*
-	 * Some sections of the library from which information
-	 * needs to be extracted.
-	 * The text section is where the code to be hotpatched
-	 * resides.
-	 * The symtab, and dynsym sections provide information on
-	 * the whereabouts of symbols, whose address in the text
-	 * section.
-	 */
-	Elf64_Half text_section_index;
-	Elf64_Shdr sh_text_section;
-
-	struct section_list symbol_tables;
-	struct section_list rela_tables;
 
 	/* Where the text starts inside the shared object */
 	unsigned long text_offset;
@@ -174,7 +151,6 @@ struct intercept_desc {
 	 */
 	unsigned char *text_start;
 	unsigned char *text_end;
-
 
 	struct patch_desc *items;
 	unsigned count;
@@ -193,8 +169,11 @@ struct intercept_desc {
 	unsigned char *next_trampoline;
 };
 
+struct intercept_desc *allocate_next_obj_desc(void);
+
 bool has_jump(const struct intercept_desc *desc, unsigned char *addr);
 void mark_jump(const struct intercept_desc *desc, const unsigned char *addr);
+void mark_nop(struct intercept_desc *desc, unsigned char *address, size_t size);
 
 void allocate_trampoline_table(struct intercept_desc *desc);
 void find_syscalls(struct intercept_desc *desc);
@@ -222,5 +201,10 @@ bool is_overwritable_nop(const struct intercept_disasm_result *ins);
 void create_jump(unsigned char opcode, unsigned char *from, void *to);
 
 void intercept(void);
+
+void allocate_jump_table(struct intercept_desc *desc);
+void allocate_nop_table(struct intercept_desc *desc);
+
+void detect_objects(void);
 
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2017, Intel Corporation
+ * Copyright 2017, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,49 +30,41 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-.global xlongjmp;
-#.type   xlongjmp, @function
+#include "config.h"
+#include "intercept.h"
 
-.global has_ymm_registers;
-#.type   has_ymm_registers, @function
+#include <stdbool.h>
 
-.global syscall_no_intercept;
-#.type   syscall_no_intercept, @function
+/* XXX */
+#include <stdio.h>
 
-.text
+#include <mach-o/dyld.h>
 
-xlongjmp:
-	.cfi_startproc
-	movq        %rdx, %rax
-	movq        %rsi, %rsp
-	jmp         *%rdi
-	.cfi_endproc
+static bool
+should_patch_object(const char *name)
+{
+	if (name == NULL)
+		return false;
+	puts(name);
 
-#.size   xlongjmp, .-xlongjmp
+	return false;
+}
 
-has_ymm_registers:
-	.cfi_startproc
-	pushq       %rbx
-	movq        $0x1, %rax
-	cpuid
-	movq        %rcx, %rax
-	shrq        $28, %rax
-	andq        $1, %rax
-	popq        %rbx
-	retq
-	.cfi_endproc
+static void
+detect_object(const struct mach_header *header, const char *name)
+{
+	if (header == NULL)
+		return;
 
-#.size   has_ymm_registers, .-has_ymm_registers
+	should_patch_object(name);
+}
 
-syscall_no_intercept:
-	movq        %rdi, %rax  /* convert from linux ABI calling */
-	movq        %rsi, %rdi  /* convention to syscall calling convention */
-	movq        %rdx, %rsi
-	movq        %rcx, %rdx
-	movq        %r8, %r10
-	movq        %r9, %r8
-	movq        8(%rsp), %r9
-	syscall
-	ret
+void
+detect_objects(void)
+{
+	uint32_t count = _dyld_image_count();
 
-#.size   syscall_no_intercept, .-syscall_no_intercept
+	for (uint32_t i = 0; i < count; ++i)
+		detect_object(_dyld_get_image_header(i),
+				_dyld_get_image_name(i));
+}

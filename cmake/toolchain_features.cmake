@@ -38,7 +38,6 @@ include(CheckFunctionExists)
 if (NOT CMAKE_VERSION VERSION_LESS 3.1.0)
 	set(CMAKE_C_STANDARD 99)
 	set(CMAKE_C_STANDARD_REQUIRED ON)
-	set(CMAKE_C_EXTENSIONS OFF)
 	set(CMAKE_CXX_STANDARD 11)
 else()
 	check_c_compiler_flag(-std=c99 HAS_STDC99)
@@ -62,9 +61,12 @@ check_c_compiler_flag(-Wextra HAS_WEXTRA)
 check_c_compiler_flag(-pedantic HAS_PEDANTIC)
 check_c_compiler_flag(-Wno-missing-field-initializers HAS_NOMFI)
 check_c_compiler_flag(-Wno-c90-c99-compat HAS_NO9099)
+check_c_compiler_flag(-Wno-c11-extensions HAS_NOC11WARN)
 check_c_compiler_flag(-Wl,-nostdlib LINKER_HAS_NOSTDLIB)
 check_c_compiler_flag(-Wl,--fatal-warnings HAS_WLFATAL)
 check_c_compiler_flag(-Wno-unused-command-line-argument HAS_NOUNUSEDARG)
+check_c_compiler_flag(-Wno-deprecated-declarations
+			SYSCALL_INTERCEPT_NOWARNDECRECATED)
 check_c_compiler_flag(-pie HAS_ARG_PIE)
 check_c_compiler_flag(-nopie HAS_ARG_NOPIE)
 check_c_compiler_flag(-no-pie HAS_ARG_NO_PIE)
@@ -87,6 +89,9 @@ endif()
 if(HAS_NO9099)
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-c90-c99-compat")
 endif()
+if(HAS_NOC11WARN)
+	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-c11-extensions")
+endif()
 
 if("${CMAKE_C_COMPILER_ID}" MATCHES "Clang" AND HAS_NOMFI)
 	# See: https://llvm.org/bugs/show_bug.cgi?id=21689
@@ -94,19 +99,36 @@ if("${CMAKE_C_COMPILER_ID}" MATCHES "Clang" AND HAS_NOMFI)
 		"${CMAKE_C_FLAGS} -Wno-missing-field-initializers")
 endif()
 
+#####################################################
+#
+# Check for the existance of gnu_get_libc_release, to
+# infer whether the runtime library used is GNU libc.
+# If it is so, use the _GNU_SOURCE macro to enable
+# more extension in libc header files.
+#
+check_c_source_compiles("
+#include <gnu/libc-version.h>
+#include <stdio.h>
+int main()
+{ return puts(gnu_get_libc_release(); }
+ " SYSCALL_INTERCEPT_WITH_GLIBC)
 
-# Hack, adding _GNU_SOURCE macro is just hardwired here for now.
-# XXX: only do it when building with glibc.
-# The only possible target in the foreseeable future is GNU/Linux x86_64
-# so it doesn't matter.
-# The only library extension used is dlinfo.
-add_definitions(-D_GNU_SOURCE)
+if(SYSCALL_INTERCEPT_WITH_GLIBC)
+	add_definitions(-D_GNU_SOURCE)
+endif()
 
-
-# GNUC extension
+#####################################################
+#
+# constructor, destructor attributes
+#
+# language extensions
+#
 check_c_source_compiles("
 static __attribute__((constructor)) void
 entry_point(void) {}
+
+static __attribute__((destructor)) void
+exit_point(void) {}
 
 int main(void) { return 0; }
 "
@@ -116,8 +138,12 @@ if(NOT HAS_GCC_ATTR_CONSTR)
 	message(FATAL_ERROR "constructor attribute support required")
 endif()
 
-
-# GNUC extension -- system header pragma
+#####################################################
+#
+# system header pragma
+#
+# language extension
+#
 set(orig_req_incs ${CMAKE_REQUIRED_INCLUDES})
 set(CMAKE_REQUIRED_INCLUDES
 	"${CMAKE_REQUIRED_INCLUDES} ${PROJECT_SOURCE_DIR}/cmake")
@@ -127,32 +153,216 @@ check_c_source_compiles("
 
 int main(void) { return 0; }
 "
- HAS_GCC_PRAGMA_SYSH)
+ SYSCALL_INTERCEPT_GCC_PRAGMA_SYSH)
 
 set(CMAKE_REQUIRED_INCLUDES ${orig_req_incs})
 
-if(HAS_GCC_PRAGMA_SYSH)
-	add_definitions(-DHAS_GCC_PRAGMA_SYSH)
-endif()
+check_include_files(elf.h SYSCALL_INTERCEPT_ELF)
+check_include_files(mach-o/dyld.h SYSCALL_INTERCEPT_MACH_O)
 
-
-# elf.h -- syscall_intercept can only decode ELFs
-check_include_files(elf.h HAS_ELF_H)
-
-if(NOT HAS_ELF_H)
-	message(FATAL_ERROR "elf.h not found")
-endif()
-
-
-
-# dladdr -- GNU libc extension
+#####################################################
+#
+# dladdr function
+#
+# libc extension
+#
+# Solaris, glibc, Apple libc, BSD libc, etc...
+#
 set(orig_req_libs ${CMAKE_REQUIRED_LIBRARIES})
 set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_DL_LIBS})
-
-check_function_exists(dladdr HAS_DLADDR)
-
+check_c_source_compiles("
+#include <dlfcn.h>
+int main() {
+	Dl_info x;
+	(void) dladdr((void*)dladdr, &x);
+}"
+  SYSCALL_INTERCEPT_DLADDR)
 set(CMAKE_REQUIRED_LIBRARIES ${orig_req_libs})
 
-if(NOT HAS_DLADDR)
+if(NOT SYSCALL_INTERCEPT_DLADDR)
 	message(FATAL_ERROR "dladdr not found")
 endif()
+
+#####################################################
+#
+# dl_iterate_phdr function
+#
+# libc extension
+#
+# glibc
+#
+set(orig_req_libs ${CMAKE_REQUIRED_LIBRARIES})
+set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_DL_LIBS})
+check_c_source_compiles("
+#include <dlfcn.h>
+static int x(struct dl_phdr_info *info, size_t size, void *data) {
+	(void) info;
+	(void) size;
+	(void) data;
+}
+int main() {
+	(void) dl_iterate_phdr(x, NULL);
+}"
+  SYSCALL_INTERCEPT_DL_ITERATE_PHDR)
+set(CMAKE_REQUIRED_LIBRARIES ${orig_req_libs})
+
+#####################################################
+#
+# getauxval function
+#
+# libc extension
+#
+# glibc
+#
+check_c_source_compiles("
+#include <sys/auxv.h>
+int main(void) {
+	(void)getauxval(AT_SYSINFO_EHDR);
+	return 0;
+}
+"
+ SYSCALL_INTERCEPT_AUXV)
+
+#####################################################
+#
+# _Static_assert keyword
+#
+# C11 language feature, considered as a language extension when using C99
+# Hey, RedHat, it is 2017, y u no provide C11 compiler? You had six years!
+#
+check_c_source_compiles("
+_Static_assert(1 + 1 == 2, \"arithmetic failure\");
+int main(void) {
+	return 0;
+}
+"
+ SYSCALL_INTERCEPT_STATIC_ASSERT_KEYWORD)
+
+#####################################################
+#
+# static_assert macro
+#
+# C11 standard library feature, considered as an extension when using C99
+#
+check_c_source_compiles("
+#include <assert.h>
+static_assert(1 + 1 == 2, \"arithmetic failure\");
+int main(void) {
+	return 0;
+}
+"
+ SYSCALL_INTERCEPT_STATIC_ASSERT_MACRO)
+
+#####################################################
+#
+# _Noreturn keyword
+#
+# C11 language feature, considered as a language extension when using C99
+#
+# clang, gcc, etc...
+#
+check_c_source_compiles("
+volatile unsigned i; 
+_Noreturn void x(void);
+void x(void)
+{
+	while (1) {
+		++i;
+	}
+}
+int main(void) {
+	return 0;
+}
+"
+ SYSCALL_INTERCEPT_NORETURN_KEYWORD)
+
+#####################################################
+#
+# noreturn macro
+#
+# C11 standard library feature, considered as an extension when using C99
+#
+check_c_source_compiles("
+#include <stdnoreturn.h>
+volatile unsigned i; 
+noreturn void x(void);
+void x(void)
+{
+	while (1) {
+		++i;
+	}
+}
+int main(void) {
+	return 0;
+}
+"
+ SYSCALL_INTERCEPT_NORETURN_MACRO)
+
+#####################################################
+#
+# noreturn attribute
+#
+# language extension
+#
+check_c_source_compiles("
+__attribute__((noreturn)) void x(void);
+volatile unsigned i; 
+void x(void)
+{
+	while (1) {
+		++i;
+	}
+}
+int main(void) {
+	return 0;
+}
+"
+ SYSCALL_INTERCEPT_NORETURN_ATTRIBUTE)
+
+#####################################################
+#
+# format attribute
+#
+# language extension
+#
+check_c_source_compiles("
+void x(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+int main(void) {
+	return 0;
+}
+"
+ SYSCALL_INTERCEPT_FORMAT_ATTRIBUTE)
+
+#####################################################
+#
+# clang diagnostic push/pop pragmas
+#
+# language extension
+#
+check_c_source_compiles("
+int main(void) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored \"-Wunused-variable\"
+	int x;
+#pragma clang diagnostic pop
+	return 0;
+}
+"
+ SYSCALL_INTERCEPT_CLANG_DIAGNOSTIC_PRAGMA)
+
+#####################################################
+#
+# GCC diagnostic push/pop pragmas
+#
+# language extension
+#
+check_c_source_compiles("
+int main(void) {
+#pragma gcc diagnostic push
+#pragma gcc diagnostic ignored \"-Wunused-variable\"
+	int x;
+#pragma gcc diagnostic pop
+	return 0;
+}
+"
+ SYSCALL_INTERCEPT_GCC_DIAGNOSTIC_PRAGMA)

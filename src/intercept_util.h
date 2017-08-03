@@ -38,6 +38,8 @@
 #include <stddef.h>
 #include <sys/types.h>
 
+#include "config.h"
+
 /*
  * syscall_no_intercept - syscall without interception
  *
@@ -47,6 +49,8 @@
  * would just result in an infinite recursion.
  */
 long syscall_no_intercept(long syscall_number, ...);
+
+noreturn void xlongjmp(long rip, long rsp, long rax);
 
 /*
  * xmmap_anon - get new memory mapping
@@ -81,16 +85,5 @@ long xlseek(long fd, unsigned long off, int whence);
  * Always succeeds reading size bytes returns - aborts the process on failure.
  */
 void xread(long fd, void *buffer, size_t size);
-
-void intercept_setup_log(const char *path_base, const char *trunc);
-void intercept_log(const char *buffer, size_t len);
-
-enum intercept_log_result { KNOWN, UNKNOWN };
-
-void intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
-			long arg2, long arg3,
-			long arg4, long arg5, uint64_t syscall_offset,
-			enum intercept_log_result result_known, long result);
-void intercept_log_close(void);
 
 #endif

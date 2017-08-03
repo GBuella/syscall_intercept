@@ -30,49 +30,53 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-.global xlongjmp;
-#.type   xlongjmp, @function
+/*
+ * intercept_desc_elf.h - a few declarations used in libsyscall_intercept
+ * for decoding elf objects.
+ */
 
-.global has_ymm_registers;
-#.type   has_ymm_registers, @function
+#ifndef INTERCEPT_INTERCEPT_DESC_ELF_H
+#define INTERCEPT_INTERCEPT_DESC_ELF_H
 
-.global syscall_no_intercept;
-#.type   syscall_no_intercept, @function
+#include <elf.h>
+#include <link.h>
 
-.text
+/*
+ * A section_list struct contains information about sections where
+ * libsyscall_intercept looks for jump destinations among symbol addresses.
+ * Generally, only two sections are used for this, so 16 should be enough
+ * for the maximum number of headers to be stored.
+ *
+ * See the calls to the add_table_info routine in the intercept_desc.c source
+ * file.
+ */
+struct section_list {
+	Elf64_Half count;
+	Elf64_Shdr headers[0x10];
+};
 
-xlongjmp:
-	.cfi_startproc
-	movq        %rdx, %rax
-	movq        %rsi, %rsp
-	jmp         *%rdi
-	.cfi_endproc
+/* Platform specific data about an object file - variant used for ELF */
+struct intercept_object_desc {
+	/*
+	 * delta between vmem addresses and addresses in symbol tables,
+	 * non-zero for dynamic objects
+	 */
+	unsigned char *base_addr;
 
-#.size   xlongjmp, .-xlongjmp
+	/*
+	 * Some sections of the library from which information
+	 * needs to be extracted.
+	 * The text section is where the code to be hotpatched
+	 * resides.
+	 * The symtab, and dynsym sections provide information on
+	 * the whereabouts of symbols, whose address in the text
+	 * section.
+	 */
+	Elf64_Half text_section_index;
+	Elf64_Shdr sh_text_section;
 
-has_ymm_registers:
-	.cfi_startproc
-	pushq       %rbx
-	movq        $0x1, %rax
-	cpuid
-	movq        %rcx, %rax
-	shrq        $28, %rax
-	andq        $1, %rax
-	popq        %rbx
-	retq
-	.cfi_endproc
+	struct section_list symbol_tables;
+	struct section_list rela_tables;
+};
 
-#.size   has_ymm_registers, .-has_ymm_registers
-
-syscall_no_intercept:
-	movq        %rdi, %rax  /* convert from linux ABI calling */
-	movq        %rsi, %rdi  /* convention to syscall calling convention */
-	movq        %rdx, %rsi
-	movq        %rcx, %rdx
-	movq        %r8, %r10
-	movq        %r9, %r8
-	movq        8(%rsp), %r9
-	syscall
-	ret
-
-#.size   syscall_no_intercept, .-syscall_no_intercept
+#endif
