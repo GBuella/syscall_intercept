@@ -199,6 +199,35 @@ check_op(struct intercept_disasm_result *result, cs_x86_op *op,
 }
 
 /*
+ * holds_jump_trampoline
+ * Check if an instruction just disassembled is a NOP that can be
+ * used for placing an extra jump instruction into it.
+ * See the nop_trampoline usage in the patcher.c source file.
+ * This instruction is usable only if it occupies at least seven bytes.
+ * Two are needed for a short jump, and another 5 bytes for a trampoline
+ * jump with 32 bit displacement.
+ *
+ * As in (where XXXX represents a 32 bit displacement):
+ *                                Before      After
+ *                                _______     _______
+ * address of NOP instruction ->  | NOP |     | JMP | <- jumps to next
+ *                                |     |     | +8  |     instruction
+ *                                |     |     | JMP | <- 5 bytes of payload
+ *                                |     |     |  X  |
+ *                                |     |     |  X  |
+ *                                |     |     |  X  |
+ *                                |     |     |  X  |
+ *                                |     |     |     |
+ * address of next instruction -> -------     -------
+ *
+ */
+bool
+holds_jump_trampoline(unsigned length)
+{
+	return length >= 2 + 5;
+}
+
+/*
  * intercept_disasm_next_instruction - Examines a single instruction
  * in a text section. This is only a wrapper around capstone specific code,
  * collecting data that can be used later to make decisions about patching.
@@ -260,6 +289,8 @@ intercept_disasm_next_instruction(struct intercept_disasm_context *context,
 			break;
 		case X86_INS_NOP:
 			result.is_nop = true;
+			result.is_overwritable_nop =
+				holds_jump_trampoline(result.length);
 			break;
 		default:
 			result.is_jump = false;

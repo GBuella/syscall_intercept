@@ -30,28 +30,73 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*
- * intercept.h - a few declarations used in libsyscall_intercept
- */
+#ifndef SYSCALL_INTERCEPT_OBJ_DESC_H
+#define SYSCALL_INTERCEPT_OBJ_DESC_H
 
-#ifndef SYSCALL_INTERCEPT_INTERCEPT_H
-#define SYSCALL_INTERCEPT_INTERCEPT_H
+#include <stdbool.h>
+#include <stddef.h>
 
-#define INTERCEPTOR_EXIT_CODE 111
+#include "range.h"
 
-void mprotect_asm_wrappers(void);
+struct patch_desc;
 
-#define SYSCALL_INS_SIZE 2
-#define JUMP_INS_SIZE 5
-#define CALL_OPCODE 0xe8
-#define JMP_OPCODE 0xe9
-#define SHORT_JMP_OPCODE 0xeb
-#define PUSH_IMM_OPCODE 0x68
-#define NOP_OPCODE 0x90
-#define INT3_OPCODE 0xCC
+struct obj_desc {
 
-void create_jump(unsigned char opcode, unsigned char *from, void *to);
+	/*
+	 * uses_trampoline_table - For now this is decided runtime
+	 * to make it easy to compare the operation of the library
+	 * with and without it. If it is OK, we can remove this
+	 * flag, and just always use the trampoline table.
+	 */
+	bool uses_trampoline_table;
 
-void intercept(void);
+	/*
+	 * delta between vmem addresses and addresses in symbol tables,
+	 * non-zero for dynamic objects
+	 */
+	unsigned char *base_addr;
+
+	/* where the object is in fs */
+	const char *path;
+
+	/* Where the text starts inside the shared object */
+	unsigned long text_offset;
+
+	/*
+	 * Where the text starts and ends in the virtual memory seen by the
+	 * current process.
+	 */
+	unsigned char *text_start;
+	unsigned char *text_end;
+
+
+	struct patch_desc *items;
+	unsigned patch_count;
+	unsigned char *jump_table;
+
+	size_t nop_count;
+	size_t max_nop_count;
+	struct range *nop_table;
+
+	void *c_destination;
+	void *c_destination_clone_child;
+
+	unsigned char *trampoline_table;
+	size_t trampoline_table_size;
+
+	unsigned char *next_trampoline;
+
+	struct obj_desc *next;
+};
+
+struct obj_desc *obj_desc_allocate(void);
+
+bool has_jump(const struct obj_desc *desc, unsigned char *addr);
+void mark_jump(const struct obj_desc *desc, const unsigned char *addr);
+void mark_nop(struct obj_desc *desc, unsigned char *address, size_t size);
+
+void allocate_jump_table(struct obj_desc *);
+void allocate_nop_table(struct obj_desc *);
+void allocate_trampoline_table(struct obj_desc *);
 
 #endif

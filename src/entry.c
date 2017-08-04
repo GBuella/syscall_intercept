@@ -35,6 +35,7 @@
  *  expected to be executed by the loader while using LD_PRELOAD
  */
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <syscall.h>

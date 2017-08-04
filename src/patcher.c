@@ -70,12 +70,16 @@
 
 #include "intercept.h"
 #include "intercept_util.h"
+#include "intercept_log.h"
 
 #include <assert.h>
 #include <stdint.h>
 #include <syscall.h>
 #include <sys/mman.h>
 #include <string.h>
+#include "obj_desc.h"
+#include "patch_desc.h"
+#include "patcher.h"
 
 #include <stdio.h>
 
@@ -168,7 +172,7 @@ create_jump(unsigned char opcode, unsigned char *from, void *to)
  * to implement more allocation here if such need would arise.
  */
 static void
-check_trampoline_usage(const struct intercept_desc *desc)
+check_trampoline_usage(const struct obj_desc *desc)
 {
 	if (!desc->uses_trampoline_table)
 		return;
@@ -223,7 +227,7 @@ is_nop_in_range(unsigned char *address, const struct range *nop)
  * assign_nop_trampoline
  * Looks for a NOP instruction close to a syscall instruction to be patched.
  * The struct patch_desc argument specifies where the particular syscall
- * instruction resides, and the struct intercept_desc argument of course
+ * instruction resides, and the struct obj_desc argument of course
  * already contains information about NOPs, collected by the find_syscalls
  * routine.
  *
@@ -231,7 +235,7 @@ is_nop_in_range(unsigned char *address, const struct range *nop)
  * the nop_trampoline fields of a struct patch_desc.
  */
 static void
-assign_nop_trampoline(struct intercept_desc *desc,
+assign_nop_trampoline(struct obj_desc *desc,
 		struct patch_desc *patch,
 		size_t *next_nop_i)
 {
@@ -315,19 +319,19 @@ is_relocateable_after_syscall(struct intercept_disasm_result ins)
  * uses_prev_ins ; uses_prev_ins_2 ; uses_next_ins
  */
 static void
-check_surrounding_instructions(struct intercept_desc *desc,
+check_surrounding_instructions(struct obj_desc *desc,
 				struct patch_desc *patch)
 {
 	patch->uses_prev_ins =
 	    is_relocateable_before_syscall(patch->preceding_ins) &&
-	    !is_overwritable_nop(&patch->preceding_ins) &&
+	    !patch->preceding_ins.is_overwritable_nop &&
 	    !has_jump(desc, patch->syscall_addr);
 
 	if (patch->uses_prev_ins) {
 		patch->uses_prev_ins_2 =
 		    patch->uses_prev_ins &&
 		    is_relocateable_before_syscall(patch->preceding_ins_2) &&
-		    !is_overwritable_nop(&patch->preceding_ins_2) &&
+		    !patch->preceding_ins_2.is_overwritable_nop &&
 		    !has_jump(desc, patch->syscall_addr
 			- patch->preceding_ins.length);
 	} else {
@@ -336,7 +340,7 @@ check_surrounding_instructions(struct intercept_desc *desc,
 
 	patch->uses_next_ins =
 	    is_relocateable_after_syscall(patch->following_ins) &&
-	    !is_overwritable_nop(&patch->following_ins) &&
+	    !patch->following_ins.is_overwritable_nop &&
 	    !has_jump(desc,
 		patch->syscall_addr + SYSCALL_INS_SIZE);
 }
@@ -357,11 +361,11 @@ check_surrounding_instructions(struct intercept_desc *desc,
  * finding padding bytes, etc..
  */
 void
-create_patch_wrappers(struct intercept_desc *desc)
+create_patch_wrappers(struct obj_desc *desc)
 {
 	size_t next_nop_i = 0;
 
-	for (unsigned patch_i = 0; patch_i < desc->count; ++patch_i) {
+	for (unsigned patch_i = 0; patch_i < desc->patch_count; ++patch_i) {
 		struct patch_desc *patch = desc->items + patch_i;
 
 		assign_nop_trampoline(desc, patch, &next_nop_i);
@@ -383,7 +387,7 @@ create_patch_wrappers(struct intercept_desc *desc)
 			/*
 			 * The first two bytes of the nop are used for
 			 * something else, see the explanation
-			 * at is_overwritable_nop in intercept_desc.c
+			 * at is_overwritable_nop in obj_desc.c
 			 */
 
 			/*
@@ -813,12 +817,12 @@ after_nop(const struct range *nop)
  * Loop over all the patches, and and overwrite each syscall.
  */
 void
-activate_patches(struct intercept_desc *desc)
+activate_patches(struct obj_desc *desc)
 {
 	unsigned char *first_page;
 	size_t size;
 
-	if (desc->count == 0)
+	if (desc->patch_count == 0)
 		return;
 
 	first_page = round_down_address(desc->text_start);
@@ -828,7 +832,7 @@ activate_patches(struct intercept_desc *desc)
 	    PROT_READ | PROT_WRITE | PROT_EXEC) != 0)
 		xabort("mprotect PROT_READ | PROT_WRITE | PROT_EXEC");
 
-	for (unsigned i = 0; i < desc->count; ++i) {
+	for (unsigned i = 0; i < desc->patch_count; ++i) {
 		const struct patch_desc *patch = desc->items + i;
 
 		if (patch->dst_jmp_patch < desc->text_start ||
@@ -878,7 +882,7 @@ activate_patches(struct intercept_desc *desc)
 			 * are used as an mini extra trampoline table.
 			 *
 			 * See also: the is_overwritable_nop function in
-			 * the intercept_desc.c source file.
+			 * the obj_desc.c source file.
 			 */
 
 			/* jump from syscall to mini trampoline */

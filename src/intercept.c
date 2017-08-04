@@ -40,8 +40,6 @@
 
 #include <assert.h>
 #include <stdbool.h>
-#include <elf.h>
-#include <dlfcn.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <unistd.h>
@@ -50,14 +48,18 @@
 #include <string.h>
 #include <syscall.h>
 #include <sys/mman.h>
-#include <stdarg.h>
-#include <sys/auxv.h>
 
 #include "intercept.h"
 #include "intercept_util.h"
+#include "intercept_log.h"
 #include "libsyscall_intercept_hook_point.h"
 #include "disasm_wrapper.h"
+#include "detect_objects.h"
+#include "analyze_object.h"
+#include "crawl_text.h"
 #include "magic_syscalls.h"
+#include "patcher.h"
+#include "obj_desc.h"
 
 int (*intercept_hook_point)(long syscall_number,
 			long arg0, long arg1,
@@ -67,36 +69,7 @@ int (*intercept_hook_point)(long syscall_number,
 
 void (*intercept_hook_point_clone_child)(void);
 
-bool debug_dumps_on;
-
-void
-debug_dump(const char *fmt, ...)
-{
-	int len;
-	va_list ap;
-
-	if (!debug_dumps_on)
-		return;
-
-	va_start(ap, fmt);
-	len = vsnprintf(NULL, 0, fmt, ap);
-	va_end(ap);
-
-	if (len <= 0)
-		return;
-
-	char buf[len + 1];
-
-	va_start(ap, fmt);
-	len = vsprintf(buf, fmt, ap);
-	va_end(ap);
-
-	syscall_no_intercept(SYS_write, 2, buf, len);
-}
-
 static void log_header(void);
-
-void __attribute__((noreturn)) xlongjmp(long rip, long rsp, long rax);
 
 static void
 intercept_routine(long nr, long arg0, long arg1,
@@ -111,298 +84,6 @@ intercept_routine(long nr, long arg0, long arg1,
 
 static void clone_child_intercept_routine(void);
 
-/* Should all objects be patched, or only libc and libpthread? */
-static bool patch_all_objs;
-
-/*
- * Information collected during disassemble phase, and anything else
- * needed for hotpatching are stored in this dynamically allocated
- * array of structs.
- * The number currently allocated is in the objs_count variable.
- */
-static struct intercept_desc *objs;
-static unsigned objs_count;
-
-/* was libc found while looking for loaded objects? */
-static bool libc_found;
-
-/* address of [vdso] */
-static void *vdso_addr;
-
-/*
- * allocate_next_obj_desc
- * Handles the dynamic allocation of the struct intercept_desc array.
- * Returns a pointer to a newly allocated item.
- */
-static struct intercept_desc *
-allocate_next_obj_desc(void)
-{
-	if (objs_count == 0)
-		objs = xmmap_anon(sizeof(objs[0]));
-	else
-		objs = xmremap(objs, objs_count * sizeof(objs[0]),
-			(objs_count + 1) * sizeof(objs[0]));
-
-	++objs_count;
-	return objs + objs_count - 1;
-}
-
-/*
- * get_lib_short_name - find filename in path containing directories.
- */
-static const char *
-get_lib_short_name(const char *name)
-{
-	const char *slash = strrchr(name, '/');
-	if (slash != NULL)
-		name = slash + 1;
-
-	return name;
-}
-
-/*
- * str_match - matching library names.
- * The first string (name) is not null terminated, while
- * the second string (expected) is null terminated.
- * This allows matching e.g.: "libc-2.25.so\0" with "libc\0".
- * If name_len is 4, the comparison is between: "libc" and "libc".
- */
-static bool
-str_match(const char *name, size_t name_len,
-		const char *expected)
-{
-	return name_len == strlen(expected) &&
-		strncmp(name, expected, name_len) == 0;
-}
-
-/*
- * get_name_from_proc_maps
- * Tries to find the path of an object file loaded at a specific
- * address.
- *
- * The paths found are stored in BSS, in the paths variable. The
- * returned pointer points into this variable. The next_path
- * pointer keeps track of the already "allocated" space inside
- * the paths array.
- */
-static const char *
-get_name_from_proc_maps(uintptr_t addr)
-{
-	static char paths[0x10000];
-	static char *next_path = paths;
-	const char *path = NULL;
-
-	char line[0x2000];
-	FILE *maps;
-
-	if ((next_path >= paths + sizeof(paths) - sizeof(line)))
-		return NULL; /* No more space left */
-
-	if ((maps = fopen("/proc/self/maps", "r")) == NULL)
-		return NULL;
-
-	while ((fgets(line, sizeof(line), maps)) != NULL) {
-		unsigned char *start;
-		unsigned char *end;
-
-		/* Read the path into next_path */
-		if (sscanf(line, "%p-%p %*s %*x %*x:%*x %*u %s",
-		    (void **)&start, (void **)&end, next_path) != 3)
-			continue;
-
-		if (addr < (uintptr_t)start)
-			break;
-
-		if ((uintptr_t)start <= addr && addr < (uintptr_t)end) {
-			/*
-			 * Object found, setting the return value.
-			 * Adjusting the next_path pointer to point past the
-			 * string found just now, to the unused space behind it.
-			 * The next string found (if this routine is called
-			 * again) will be stored there.
-			 */
-			path = next_path;
-			next_path += strlen(next_path) + 1;
-			break;
-		}
-	}
-
-	fclose(maps);
-
-	return path;
-}
-
-/*
- * get_any_used_vaddr - find a virtual address that is expected to
- * be a used for the object file mapped into memory.
- *
- * An Elf64_Phdr struct contains information about a segment in an on object
- * file. This routine looks for a segment with type LOAD, that has a non-zero
- * size in memory. The p_vaddr field contains the virtual address where this
- * segment should be loaded to. This of course is relative to the base address.
- *
- * typedef struct
- * {
- *   Elf64_Word p_type;			Segment type
- *   Elf64_Word p_flags;		Segment flags
- *   Elf64_Off p_offset;		Segment file offset
- *   Elf64_Addr p_vaddr;		Segment virtual address
- *   Elf64_Addr p_paddr;		Segment physical address
- *   Elf64_Xword p_filesz;		Segment size in file
- *   Elf64_Xword p_memsz;		Segment size in memory
- *   Elf64_Xword p_align;		Segment alignment
- * } Elf64_Phdr;
- *
- *
- */
-static uintptr_t
-get_any_used_vaddr(const struct dl_phdr_info *info)
-{
-	const Elf64_Phdr *pheaders = info->dlpi_phdr;
-
-	for (Elf64_Word i = 0; i < info->dlpi_phnum; ++i) {
-		if (pheaders[i].p_type == PT_LOAD && pheaders[i].p_memsz != 0)
-			return info->dlpi_addr + pheaders[i].p_vaddr;
-	}
-
-	return 0; /* not found */
-}
-
-/*
- * get_object_path - attempt to find the path of the object in the
- * filesystem.
- *
- * This is usually supplied by dl_iterate_phdr in the dl_phdr_info struct,
- * but sometimes that does not contain it.
- */
-static const char *
-get_object_path(const struct dl_phdr_info *info)
-{
-	if (info->dlpi_name != NULL && info->dlpi_name[0] != '\0') {
-		return info->dlpi_name;
-	} else {
-		uintptr_t addr = get_any_used_vaddr(info);
-		if (addr == 0)
-			return NULL;
-		return get_name_from_proc_maps(addr);
-	}
-}
-
-static bool
-is_vdso(uintptr_t addr, const char *path)
-{
-	return addr == (uintptr_t)vdso_addr || strstr(path, "vdso") != NULL;
-}
-
-/*
- * should_patch_object
- * Decides whether a particular loaded object should should be targeted for
- * hotpatching.
- * Always skipped: [vdso], and the syscall_intercept library itself.
- * Besides these two, if patch_all_objs is true, everything object is
- * a target. When patch_all_objs is false, only libraries that are parts of
- * the glibc implementation are targeted, i.e.: libc and libpthread.
- */
-static bool
-should_patch_object(uintptr_t addr, const char *path)
-{
-	static const char self[] = "libsyscall_intercept";
-	static const char libc[] = "libc";
-	static const char pthr[] = "libpthread";
-	static const char caps[] = "libcapstone";
-
-	if (is_vdso(addr, path)) {
-		debug_dump(" - skipping: is_vdso\n");
-		return false;
-	}
-
-	const char *name = get_lib_short_name(path);
-	size_t len = strcspn(name, "-.");
-
-	if (len == 0)
-		return false;
-
-	if (str_match(name, len, self)) {
-		debug_dump(" - skipping: matches self\n");
-		return false;
-	}
-
-	if (str_match(name, len, caps)) {
-		debug_dump(" - skipping: matches capstone\n");
-		return false;
-	}
-
-	if (str_match(name, len, libc)) {
-		debug_dump(" - libc found\n");
-		libc_found = true;
-		return true;
-	}
-
-	if (patch_all_objs)
-		return true;
-
-	if (str_match(name, len, pthr)) {
-		debug_dump(" - libpthread found\n");
-		return true;
-	}
-
-	debug_dump(" - skipping, patch_all_objs == false\n");
-	return false;
-}
-
-/*
- * analyze_object
- * Look at a library loaded into the current process, and determine as much as
- * possible about it. The disassembling, allocations are initiated here.
- *
- * This is a callback function, passed to dl_iterate_phdr(3).
- * data and size are just unused callback arguments.
- *
- *
- * From dl_iterate_phdr(3) man page:
- *
- * struct dl_phdr_info
- * {
- *     ElfW(Addr) dlpi_addr;             Base address of object
- *     const char *dlpi_name;            (Null-terminated) name of object
- *     const ElfW(Phdr) *dlpi_phdr;      Pointer to array of ELF program headers
- *     ElfW(Half) dlpi_phnum;            # of items in dlpi_phdr
- *     ...
- * }
- *
- */
-static int
-analyze_object(struct dl_phdr_info *info, size_t size, void *data)
-{
-	(void) data;
-	(void) size;
-	const char *path;
-
-	debug_dump("analyze_object called on \"%s\" at 0x%016" PRIxPTR "\n",
-	    info->dlpi_name, info->dlpi_addr);
-
-	if ((path = get_object_path(info)) == NULL)
-		return 0;
-
-	debug_dump("analyze %s\n", path);
-
-	if (!should_patch_object(info->dlpi_addr, path))
-		return 0;
-
-	struct intercept_desc *patches = allocate_next_obj_desc();
-
-	patches->base_addr = (unsigned char *)info->dlpi_addr;
-	patches->path = path;
-	patches->c_destination = (void *)((uintptr_t)&intercept_routine);
-	patches->c_destination_clone_child =
-	    (void *)((uintptr_t)&clone_child_intercept_routine);
-	find_syscalls(patches);
-	allocate_trampoline_table(patches);
-	create_patch_wrappers(patches);
-
-	return 0;
-}
-
 /*
  * intercept - This is where the highest level logic of hotpatching
  * is described. Upon startup, this routine looks for libc, and libpthread.
@@ -412,21 +93,35 @@ analyze_object(struct dl_phdr_info *info, size_t size, void *data)
 void
 intercept(void)
 {
-	vdso_addr = (void *)(uintptr_t)getauxval(AT_SYSINFO_EHDR);
 	debug_dumps_on = getenv("INTERCEPT_DEBUG_DUMP") != NULL;
-	patch_all_objs = (getenv("INTERCEPT_ALL_OBJS") != NULL);
+
+	/* Should all objects be patched, or only libc and libpthread? */
+	bool patch_all_objs = (getenv("INTERCEPT_ALL_OBJS") != NULL);
 	intercept_setup_log(getenv("INTERCEPT_LOG"),
 			getenv("INTERCEPT_LOG_TRUNC"));
 	log_header();
 	init_patcher();
 
-	dl_iterate_phdr(analyze_object, NULL);
-	if (!libc_found)
+	struct object_list list =
+		detect_objects(patch_all_objs ? 0 : detect_libc_only);
+
+	if (!list.libc_found)
 		xabort("libc not found");
 
+	for (struct obj_desc *obj = list.head; obj != NULL; obj = obj->next) {
+		obj->c_destination = (void *)((uintptr_t)&intercept_routine);
+		obj->c_destination_clone_child =
+		    (void *)((uintptr_t)&clone_child_intercept_routine);
+		analyze_object(obj);
+		crawl_text(obj);
+		allocate_trampoline_table(obj);
+		create_patch_wrappers(obj);
+	}
+
 	mprotect_asm_wrappers();
-	for (unsigned i = 0; i < objs_count; ++i)
-		activate_patches(objs + i);
+
+	for (struct obj_desc *obj = list.head; obj != NULL; obj = obj->next)
+		activate_patches(obj);
 }
 
 /*
@@ -445,24 +140,6 @@ log_header(void)
 		"paste $tempfile2 $0 ; exit 0\n";
 
 	intercept_log(self_decoder, sizeof(self_decoder) - 1);
-}
-
-/*
- * xabort - speaks for itself
- * Calling abort() in libc might result other syscalls being called
- * by libc.
- */
-void
-xabort(const char *msg)
-{
-	static const char main_msg[] = " libsyscall_intercept error\n";
-
-	if (msg != NULL)
-		syscall_no_intercept(SYS_write, 2, msg, strlen(msg));
-	syscall_no_intercept(SYS_write, 2, main_msg, sizeof(main_msg));
-	syscall_no_intercept(SYS_exit_group, 1);
-
-	__builtin_trap();
 }
 
 /*

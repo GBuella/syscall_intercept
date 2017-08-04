@@ -55,8 +55,8 @@
  * is handled as expected -- forwarded to kernel, or to hook routine.
  */
 
-#ifndef INTERCEPT_MAGIC_SYSCALLS_H
-#define INTERCEPT_MAGIC_SYSCALLS_H
+#ifndef SYSCALL_INTERCEPT_MAGIC_SYSCALLS_H
+#define SYSCALL_INTERCEPT_MAGIC_SYSCALLS_H
 
 #ifndef SYSCALL_INTERCEPT_WITHOUT_MAGIC_SYSCALLS
 
