@@ -48,7 +48,12 @@
 
 #include "libsyscall_intercept_hook_point.h"
 
+#include "crawl_text.h"
+#include "analyze_object.h"
+#include "obj_desc.h"
+#include "patcher.h"
 #include "intercept.h"
+#include "intercept_util.h"
 
 /*
  * All test libraries are expected to provide the following symbols:
@@ -194,40 +199,41 @@ main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
+	struct obj_desc *obj = obj_desc_allocate();
 	/*
 	 * Initialize syscall_intercept -- this initialization is usually
 	 * done in the routine called intercept in the intercept.c source
 	 * file.
 	 */
-	struct intercept_desc patches;
 	init_patcher();
 
 	/*
-	 * patches.c_destination - The routine that would be called from the
+	 * obj->c_destination - The routine that would be called from the
 	 * assembly wrapper templates.
 	 * This is never called while this testing, so the only thing
 	 * that matters here, is that it is a 2GB range of the generated
 	 * assembly wrappers.
 	 */
-	patches.c_destination = (void *)(uintptr_t)init_patcher;
-	patches.c_destination_clone_child = (void *)(uintptr_t)init_patcher;
+	obj->c_destination = (void *)(uintptr_t)init_patcher;
+	obj->c_destination_clone_child = (void *)(uintptr_t)init_patcher;
 
 	/*
 	 * Some more information about the library to be patched, normally
 	 * these variables would refer to libc.
 	 */
-	patches.base_addr = lib_in.info.dli_fbase;
-	patches.path = lib_in.info.dli_fname;
-	patches.uses_trampoline_table = true;
-	patches.trampoline_table = lib_in.mock_trampoline_table;
-	patches.trampoline_table_size = lib_in.mock_trampoline_table_size;
-	patches.next_trampoline = patches.trampoline_table;
+	obj->base_addr = lib_in.info.dli_fbase;
+	obj->path = lib_in.info.dli_fname;
+	obj->uses_trampoline_table = true;
+	obj->trampoline_table = lib_in.mock_trampoline_table;
+	obj->trampoline_table_size = lib_in.mock_trampoline_table_size;
+	obj->next_trampoline = obj->trampoline_table;
 
 	/* perform the actually patching */
-	find_syscalls(&patches);
-	create_patch_wrappers(&patches);
+	analyze_object(obj);
+	crawl_text(obj);
+	create_patch_wrappers(obj);
 	mprotect_asm_wrappers();
-	activate_patches(&patches);
+	activate_patches(obj);
 
 	/* compare the result of patching with the expected result */
 	check_patch(&lib_in, &lib_out);

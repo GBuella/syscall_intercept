@@ -41,8 +41,8 @@
  * easy to interface a new disassembler.
  */
 
-#ifndef INTERCEPT_DISASM_WRAPPER_H
-#define INTERCEPT_DISASM_WRAPPER_H
+#ifndef SYSCALL_INTERCEPT_DISASM_WRAPPER_H
+#define SYSCALL_INTERCEPT_DISASM_WRAPPER_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -80,6 +80,7 @@ struct intercept_disasm_result {
 	bool is_ret;
 
 	bool is_nop;
+	bool is_overwritable_nop;
 
 	/*
 	 * Optional fields:

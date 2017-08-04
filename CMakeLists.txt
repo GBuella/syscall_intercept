@@ -62,12 +62,18 @@ include(cmake/find_capstone.cmake)
 
 # main source files - intentionally excluding src/entry.c
 set(SOURCES_C
+	src/crawl_text.c
+	src/allocate_trampoline_table.c
 	src/disasm_wrapper.c
 	src/intercept.c
-	src/intercept_desc.c
+	src/obj_desc.c
 	src/intercept_util.c
+	src/intercept_log.c
 	src/patcher.c
-	src/magic_syscalls.c)
+	src/magic_syscalls.c
+	src/detect_objects.c
+	src/analyze_object.c
+	src/sections.c)
 
 set(SOURCES_ASM
 	src/intercept_template.s

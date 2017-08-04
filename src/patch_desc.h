@@ -1,5 +1,5 @@
 /*
- * Copyright 2017, Intel Corporation
+ * Copyright 2016-2017, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,51 +30,56 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SYSCALL_INTERCEPT_WITHOUT_MAGIC_SYSCALLS
+#ifndef SYSCALL_INTERCEPT_PATCHER_H
+#define SYSCALL_INTERCEPT_PATCHER_H
 
-#include <stdint.h>
-#include <string.h>
-
-#include "magic_syscalls.h"
-#include "intercept_util.h"
-#include "intercept_log.h"
+#include "range.h"
+#include "disasm_wrapper.h"
 
 /*
- * handle_magic_syscalls - this routine performs two tasks:
- * recognizes 'magic' syscalls, and, if executes commands based
- * on messages from 'magic' syscalls.
- * It returns zero if some magic syscall was handled,
- * -1 otherwise (i.e.: the syscall shall be treated as a regular syscall).
+ * The patch_list array stores some information on
+ * whereabouts of patches made to glibc.
+ * The syscall_addr pointer points to where a syscall
+ *  instruction originally resided in glibc.
+ * The asm_wrapper pointer points to the function
+ *  called from glibc.
+ * The glibc_call_patch pointer points to the exact
+ *  location, where the new call instruction should
+ *  be written.
  */
-int
-handle_magic_syscalls(long nr, long arg0, long arg1,
-			long arg2, long arg3,
-			long arg4, long arg5)
-{
-	(void) arg5;
+struct patch_desc {
+	/* the original syscall instruction */
+	unsigned char *syscall_addr;
 
-	if (nr != SYS_write)
-		return -1;
+	/* the offset of the original syscall instruction */
+	unsigned long syscall_offset;
 
-	if (arg0 != SYSCALL_INT_MAGIC_WRITE_FD)
-		return -1;
+	/* the new asm wrapper created */
+	unsigned char *asm_wrapper;
 
-	const char *message = (void *)(uintptr_t)arg1;
-	size_t len = (size_t)arg2;
+	/* the first byte overwritten in the code */
+	unsigned char *dst_jmp_patch;
 
-	if (strncmp(message, start_log_message, len) == 0) {
-		const char *path = (const void *)(uintptr_t)arg3;
-		const char *trunc = (const void *)(uintptr_t)arg4;
-		intercept_setup_log(path, trunc);
-		return 0;
-	}
+	/* the address to jump back to */
+	unsigned char *return_address;
 
-	if (strncmp(message, stop_log_message, len) == 0) {
-		intercept_log_close();
-		return 0;
-	}
+	/*
+	 * Describe up to three instructions surrounding the original
+	 * syscall instructions. Sometimes just overwritting the two
+	 * direct neighbors of the syscall is not enough, ( e.g. if
+	 * both the directly preceding, and the directly following are
+	 * single byte instruction, that only gives 4 bytes of space ).
+	 */
+	struct intercept_disasm_result preceding_ins_2;
+	struct intercept_disasm_result preceding_ins;
+	struct intercept_disasm_result following_ins;
+	bool uses_prev_ins_2;
+	bool uses_prev_ins;
+	bool uses_next_ins;
 
-	return -1;
-}
+	bool uses_nop_trampoline;
 
-#endif /* SYSCALL_INTERCEPT_WITHOUT_MAGIC_SYSCALLS */
+	struct range nop_trampoline;
+};
+
+#endif
