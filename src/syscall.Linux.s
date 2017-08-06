@@ -1,5 +1,5 @@
 /*
- * Copyright 2017, Intel Corporation
+ * Copyright 2016-2017, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,52 +30,20 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SYSCALL_INTERCEPT_CONFIG_H
-#define SYSCALL_INTERCEPT_CONFIG_H
+.global syscall_no_intercept;
+.type   syscall_no_intercept, @function
 
-#cmakedefine SYSCALL_INTERCEPT_ELF_H
-#cmakedefine SYSCALL_INTERCEPT_GCC_PRAGMA_SYSH
-#cmakedefine SYSCALL_INTERCEPT_GETAUXVAL
-#cmakedefine SYSCALL_INTERCEPT_WITH_GLIBC
-#cmakedefine SYSCALL_INTERCEPT_DLADDR
-#cmakedefine SYSCALL_INTERCEPT_DL_ITERATE_PHDR
-#cmakedefine SYSCALL_INTERCEPT_NORETURN_KEYWORD
-#cmakedefine SYSCALL_INTERCEPT_NORETURN_MACRO
-#cmakedefine SYSCALL_INTERCEPT_NORETURN_ATTRIBUTE
-#cmakedefine SYSCALL_INTERCEPT_FORMAT_ATTRIBUTE
-#cmakedefine SYSCALL_INTERCEPT_BUILTIN_UNREACHABLE
-#cmakedefine SYSCALL_INTERCEPT_NOWARNDECRECATED
-#cmakedefine SYSCALL_INTERCEPT_CLANG_DIAGNOSTIC_PRAGMA
-#cmakedefine SYSCALL_INTERCEPT_GCC_DIAGNOSTIC_PRAGMA
+.text
 
-#ifdef SYSCALL_INTERCEPT_NORETURN_MACRO
-#include <stdnoreturn.h>
-#elif defined(SYSCALL_INTERCEPT_NORETURN_KEYWORD)
-#define noreturn _Noreturn
-#elif defined(SYSCALL_INTERCEPT_NORETURN_ATTRIBUTE)
-#define noreturn __attribute__((noreturn))
-#else
-#define noreturn
-#endif
+syscall_no_intercept:
+	movq        %rdi, %rax  /* convert from linux ABI calling */
+	movq        %rsi, %rdi  /* convention to syscall calling convention */
+	movq        %rdx, %rsi
+	movq        %rcx, %rdx
+	movq        %r8, %r10
+	movq        %r9, %r8
+	movq        8(%rsp), %r9
+	syscall
+	ret
 
-noreturn static inline
-void unreachable(void)
-{
-#ifdef SYSCALL_INTERCEPT_BUILTIN_UNREACHABLE
-	__builtin_unreachable();
-#endif
-}
-
-#ifdef SYSCALL_INTERCEPT_FORMAT_ATTRIBUTE
-#define ATTR_FORMAT(...) __attribute__((format(__VA_ARGS__)))
-#else
-#define ATTR_FORMAT(...)
-#endif
-
-#define CMAKE_VERSION "@CMAKE_VERSION@"
-#define CMAKE_C_COMPILER_ID "@CMAKE_C_COMPILER_ID@"
-#define CMAKE_C_COMPILER_VERSION "@CMAKE_C_COMPILER_VERSION@"
-#define CMAKE_C_FLAGS "@CMAKE_C_FLAGS@"
-#define CMAKE_BUILD_TYPE "@CMAKE_BUILD_TYPE@"
-
-#endif
+.size   syscall_no_intercept, .-syscall_no_intercept

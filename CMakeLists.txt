@@ -29,7 +29,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-cmake_minimum_required(VERSION 2.8.7)
+cmake_minimum_required(VERSION 3.0)
 project(syscall_intercept C CXX ASM)
 
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
@@ -38,10 +38,6 @@ set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 # to disallow it. Check the paths as well:
 if(",${CMAKE_SOURCE_DIR}," STREQUAL ",${CMAKE_BINARY_DIR},")
 	message(FATAL_ERROR "In-source builds are not supported.")
-endif()
-
-if(NOT (CMAKE_SYSTEM_NAME STREQUAL "Linux"))
-	message(FATAL_ERROR "System not supported")
 endif()
 
 option(PERFORM_STYLE_CHECKS
@@ -67,10 +63,6 @@ if(NOT HAS_GCC_ATTR_CONSTR)
 	message(FATAL_ERROR "constructor attribute support required")
 endif()
 
-if(NOT SYSCALL_INTERCEPT_DL_ITERATE_PHDR)
-	message(FATAL_ERROR "dl_iterate_phdr function required")
-endif()
-
 if(NOT SYSCALL_INTERCEPT_SYS_SYSCALL_H)
 	message(FATAL_ERROR "sys/syscall.h header is required (where are the syscall numbers?)")
 endif()
@@ -89,17 +81,37 @@ set(SOURCES_C
 	src/intercept_util.c
 	src/intercept_log.c
 	src/patcher.c
-	src/magic_syscalls.c
-	src/detect_objects.c
-	src/analyze_object.c
-	src/sections.c)
+	src/magic_syscalls.c)
+
+if(SYSCALL_INTERCEPT_ELF_H AND SYSCALL_INTERCEPT_DL_ITERATE_PHDR)
+	set(SOURCES_C ${SOURCES_C}
+		src/elf/detect_objects.c
+		src/elf/analyze_object.c
+		src/elf/sections.c)
+else()
+	if(SYSCALL_INTERCEPT_MACHO_DYLD_H AND SYSCALL_INTERCEPT_DYLD_GET_I_HEADER)
+		set(SOURCES_C ${SOURCES_C}
+			src/macho/detect_objects.c)
+	else()
+		message(FATAL_ERROR "Unable to determine object format to use")
+	endif()
+endif()
 
 set(SOURCES_ASM
 	src/intercept_template.s
 	src/util.s)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+	set(SOURCES_ASM ${SOURCES_ASM} src/syscall.XNU.s)
+else()
+	if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+		set(SOURCES_ASM ${SOURCES_ASM} src/syscall.Linux.s)
+	else()
+		message(FATAL_ERROR "Kernel not supported")
+	endif()
+endif()
 
-include_directories(include ${CMAKE_CURRENT_BINARY_DIR})
+include_directories(include ${CMAKE_CURRENT_BINARY_DIR} src)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 

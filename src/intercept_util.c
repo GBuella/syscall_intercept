@@ -58,13 +58,25 @@ xmmap_anon(size_t size)
 void *
 xmremap(void *addr, size_t old, size_t new)
 {
-	addr = (void *) syscall_no_intercept(SYS_mremap, addr,
+	void *new_addr;
+
+#ifdef SYS_mremap
+	new_addr = (void *) syscall_no_intercept(SYS_mremap, addr,
 				old, new, MREMAP_MAYMOVE);
 
-	if (addr == MAP_FAILED)
+	if (new_addr == MAP_FAILED)
 		xabort("xmremap");
 
-	return addr;
+#else
+	new_addr = xmmap_anon(new);
+	if (new_addr == MAP_FAILED)
+		xabort("xmremap");
+	memcpy(new_addr, addr, (new > old) ? old : new);
+	xmunmap(addr, old);
+
+#endif
+
+	return new_addr;
 }
 
 void
@@ -106,7 +118,11 @@ xabort(const char *msg)
 	if (msg != NULL)
 		syscall_no_intercept(SYS_write, 2, msg, strlen(msg));
 	syscall_no_intercept(SYS_write, 2, main_msg, sizeof(main_msg));
+#ifdef SYS_exit_group
 	syscall_no_intercept(SYS_exit_group, 1);
+#else
+	syscall_no_intercept(SYS_exit, 1);
+#endif
 
 	unreachable();
 }

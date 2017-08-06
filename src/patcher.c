@@ -74,7 +74,7 @@
 
 #include <assert.h>
 #include <stdint.h>
-#include <syscall.h>
+#include <sys/syscall.h>
 #include <sys/mman.h>
 #include <string.h>
 #include "obj_desc.h"

@@ -38,7 +38,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-#include <syscall.h>
+#include <sys/syscall.h>
 #include <fcntl.h>
 #include <unistd.h>
 

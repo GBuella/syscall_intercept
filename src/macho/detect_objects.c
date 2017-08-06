@@ -30,52 +30,47 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SYSCALL_INTERCEPT_CONFIG_H
-#define SYSCALL_INTERCEPT_CONFIG_H
+#include "config.h"
+#include "detect_objects.h"
+#include "obj_desc.h"
 
-#cmakedefine SYSCALL_INTERCEPT_ELF_H
-#cmakedefine SYSCALL_INTERCEPT_GCC_PRAGMA_SYSH
-#cmakedefine SYSCALL_INTERCEPT_GETAUXVAL
-#cmakedefine SYSCALL_INTERCEPT_WITH_GLIBC
-#cmakedefine SYSCALL_INTERCEPT_DLADDR
-#cmakedefine SYSCALL_INTERCEPT_DL_ITERATE_PHDR
-#cmakedefine SYSCALL_INTERCEPT_NORETURN_KEYWORD
-#cmakedefine SYSCALL_INTERCEPT_NORETURN_MACRO
-#cmakedefine SYSCALL_INTERCEPT_NORETURN_ATTRIBUTE
-#cmakedefine SYSCALL_INTERCEPT_FORMAT_ATTRIBUTE
-#cmakedefine SYSCALL_INTERCEPT_BUILTIN_UNREACHABLE
-#cmakedefine SYSCALL_INTERCEPT_NOWARNDECRECATED
-#cmakedefine SYSCALL_INTERCEPT_CLANG_DIAGNOSTIC_PRAGMA
-#cmakedefine SYSCALL_INTERCEPT_GCC_DIAGNOSTIC_PRAGMA
+#include <stdbool.h>
 
-#ifdef SYSCALL_INTERCEPT_NORETURN_MACRO
-#include <stdnoreturn.h>
-#elif defined(SYSCALL_INTERCEPT_NORETURN_KEYWORD)
-#define noreturn _Noreturn
-#elif defined(SYSCALL_INTERCEPT_NORETURN_ATTRIBUTE)
-#define noreturn __attribute__((noreturn))
-#else
-#define noreturn
-#endif
+/* XXX */
+#include <stdio.h>
 
-noreturn static inline
-void unreachable(void)
+#include <mach-o/dyld.h>
+
+static bool
+should_patch_object(const char *name)
 {
-#ifdef SYSCALL_INTERCEPT_BUILTIN_UNREACHABLE
-	__builtin_unreachable();
-#endif
+	if (name == NULL)
+		return false;
+	puts(name);
+
+	return false;
 }
 
-#ifdef SYSCALL_INTERCEPT_FORMAT_ATTRIBUTE
-#define ATTR_FORMAT(...) __attribute__((format(__VA_ARGS__)))
-#else
-#define ATTR_FORMAT(...)
-#endif
+static void
+detect_object(const struct mach_header *header, const char *name)
+{
+	if (header == NULL)
+		return;
 
-#define CMAKE_VERSION "@CMAKE_VERSION@"
-#define CMAKE_C_COMPILER_ID "@CMAKE_C_COMPILER_ID@"
-#define CMAKE_C_COMPILER_VERSION "@CMAKE_C_COMPILER_VERSION@"
-#define CMAKE_C_FLAGS "@CMAKE_C_FLAGS@"
-#define CMAKE_BUILD_TYPE "@CMAKE_BUILD_TYPE@"
+	should_patch_object(name);
+}
 
-#endif
+struct object_list
+detect_objects(int flags)
+{
+	(void) flags;
+	struct object_list list = {0, };
+
+	uint32_t count = _dyld_image_count();
+
+	for (uint32_t i = 0; i < count; ++i)
+		detect_object(_dyld_get_image_header(i),
+				_dyld_get_image_name(i));
+
+	return list;
+}

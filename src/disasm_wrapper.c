@@ -44,7 +44,7 @@
 
 #include <assert.h>
 #include <string.h>
-#include <syscall.h>
+#include <sys/syscall.h>
 #include "capstone_wrapper.h"
 
 struct intercept_disasm_context {
