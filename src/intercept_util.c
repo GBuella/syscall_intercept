@@ -159,7 +159,7 @@ xabort_errno(int error_code, const char *msg)
 	syscall_no_intercept(SYS_write, 2, main_msg, sizeof(main_msg) - 1);
 	syscall_no_intercept(SYS_exit_group, 1);
 
-	__builtin_unreachable();
+	unreachable();
 }
 
 /*

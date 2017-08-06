@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2017, Intel Corporation
+ * Copyright 2017, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,35 +30,49 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*
- * The syscall_intercept library might be compiled with stricter warning
- * settings than what is used by capstone developers. The system header pragma
- * is used to make sure some diagnostics triggered by the capstone header
- * don't break syscall_intercept build.
- */
+#ifndef SYSCALL_INTERCEPT_CONFIG_H
+#define SYSCALL_INTERCEPT_CONFIG_H
 
-/* BEGIN CSTYLED */
+#cmakedefine SYSCALL_INTERCEPT_ELF_H
+#cmakedefine SYSCALL_INTERCEPT_GCC_PRAGMA_SYSH
+#cmakedefine SYSCALL_INTERCEPT_GETAUXVAL
+#cmakedefine SYSCALL_INTERCEPT_WITH_GLIBC
+#cmakedefine SYSCALL_INTERCEPT_DLADDR
+#cmakedefine SYSCALL_INTERCEPT_DL_ITERATE_PHDR
+#cmakedefine SYSCALL_INTERCEPT_NORETURN_KEYWORD
+#cmakedefine SYSCALL_INTERCEPT_NORETURN_MACRO
+#cmakedefine SYSCALL_INTERCEPT_NORETURN_ATTRIBUTE
+#cmakedefine SYSCALL_INTERCEPT_FORMAT_ATTRIBUTE
+#cmakedefine SYSCALL_INTERCEPT_BUILTIN_UNREACHABLE
 
-/*
- * Examples of such hacks / language extensions used in capstone headers:
- *
- *
- * /usr/include/capstone/capstone.h:97:23: error: enumerator value for ‘CS_MODE_BIG_ENDIAN’ is not an integer constant expression
- *  CS_MODE_BIG_ENDIAN = 1 << 31, // big-endian mode
- *                       ^
- *
- * /usr/include/capstone/arm.h:236:3: error: ISO C99 doesn’t support unnamed structs/unions
- *   };
- *    ^
- *
- */
-
-/* END CSTYLED */
-
-#include "config.h"
-
-#ifdef SYSCALL_INTERCEPT_GCC_PRAGMA_SYSH
-#pragma GCC system_header
+#ifdef SYSCALL_INTERCEPT_NORETURN_MACRO
+#include <stdnoreturn.h>
+#elif defined(SYSCALL_INTERCEPT_NORETURN_KEYWORD)
+#define noreturn _Noreturn
+#elif defined(SYSCALL_INTERCEPT_NORETURN_ATTRIBUTE)
+#define noreturn __attribute__((noreturn))
+#else
+#define noreturn
 #endif
 
-#include <capstone.h>
+noreturn static inline
+void unreachable(void)
+{
+#ifdef SYSCALL_INTERCEPT_BUILTIN_UNREACHABLE
+	__builtin_unreachable();
+#endif
+}
+
+#ifdef SYSCALL_INTERCEPT_FORMAT_ATTRIBUTE
+#define ATTR_FORMAT(...) __attribute__((format(__VA_ARGS__)))
+#else
+#define ATTR_FORMAT(...)
+#endif
+
+#define CMAKE_VERSION "@CMAKE_VERSION@"
+#define CMAKE_C_COMPILER_ID "@CMAKE_C_COMPILER_ID@"
+#define CMAKE_C_COMPILER_VERSION "@CMAKE_C_COMPILER_VERSION@"
+#define CMAKE_C_FLAGS "@CMAKE_C_FLAGS@"
+#define CMAKE_BUILD_TYPE "@CMAKE_BUILD_TYPE@"
+
+#endif

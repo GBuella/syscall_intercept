@@ -30,6 +30,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "config.h"
 #include "detect_objects.h"
 #include "intercept.h"
 #include "intercept_util.h"
@@ -42,19 +43,38 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/auxv.h>
 #include <sys/syscall.h>
+
+#ifdef SYSCALL_INTERCEPT_GETAUXVAL
+
+#include <sys/auxv.h>
+
+static uintptr_t
+get_vdso_addr(void)
+{
+	return (uintptr_t)getauxval(AT_SYSINFO_EHDR);
+}
+
+#else
+
+static uintptr_t
+get_vdso_addr(void)
+{
+	return 0;
+}
+
+#endif
 
 struct search {
 	struct object_list result;
-	void *vdso_addr;
+	uintptr_t vdso_addr;
 	bool libc_only;
 };
 
 static bool
 is_vdso(struct search *search, uintptr_t addr, const char *path)
 {
-	return addr == (uintptr_t)search->vdso_addr ||
+	return (search->vdso_addr != 0 && addr == search->vdso_addr) ||
 		strstr(path, "vdso") != NULL;
 }
 
@@ -315,7 +335,7 @@ detect_objects(int flags)
 {
 	struct search search = {
 	    .result = { .head = NULL, .libc_found = false },
-	    .vdso_addr = (void *)(uintptr_t)getauxval(AT_SYSINFO_EHDR),
+	    .vdso_addr = get_vdso_addr(),
 	    .libc_only = ((flags & detect_libc_only) != 0) };
 
 	dl_iterate_phdr(dl_iterate_callback, &search);

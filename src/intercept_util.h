@@ -33,13 +33,15 @@
 #ifndef SYSCALL_INTERCEPT_UTIL_H
 #define SYSCALL_INTERCEPT_UTIL_H
 
+#include "config.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <sys/types.h>
 
 extern bool debug_dumps_on;
-void debug_dump(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+void debug_dump(const char *fmt, ...) ATTR_FORMAT(printf, 1, 2);
 
 /*
  * syscall_no_intercept - syscall without interception
@@ -55,7 +57,7 @@ long syscall_no_intercept(long syscall_number, ...);
  * xlongjmp - a dumber version of longjmp.
  * Not using libc, and specific to X86_64.
  */
-void __attribute__((noreturn)) xlongjmp(long rip, long rsp, long rax);
+noreturn void xlongjmp(long rip, long rsp, long rax);
 
 /*
  * xmmap_anon - get new memory mapping
@@ -91,9 +93,9 @@ long xlseek(long fd, unsigned long off, int whence);
  */
 void xread(long fd, void *buffer, size_t size);
 
-__attribute__((noreturn)) void xabort_errno(int error_code, const char *msg);
+noreturn void xabort_errno(int error_code, const char *msg);
 
-__attribute__((noreturn)) void xabort(const char *msg);
+noreturn void xabort(const char *msg);
 
 void xabort_on_syserror(long syscall_result, const char *msg);
 
