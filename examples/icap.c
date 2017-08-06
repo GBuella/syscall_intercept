@@ -36,7 +36,7 @@
  */
 #include <stddef.h>
 #include <string.h>
-#include <syscall.h>
+#include <sys/syscall.h>
 
 #include "libsyscall_intercept_hook_point.h"
 

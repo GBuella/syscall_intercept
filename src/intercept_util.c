@@ -58,10 +58,18 @@ xmmap_anon(size_t size)
 void *
 xmremap(void *addr, size_t old, size_t new)
 {
-	long new_addr = syscall_no_intercept(SYS_mremap, addr,
+	long new_addr;
+
+#ifdef SYS_mremap
+	new_addr = syscall_no_intercept(SYS_mremap, addr,
 				old, new, MREMAP_MAYMOVE);
 
 	xabort_on_syserror(new_addr, __func__);
+#else
+	new_addr = xmmap_anon(new);
+	mempy(new_addr, addr, (new > old) ? old : new);
+	xmunmap(addr, old);
+#endif
 
 	return (void *) new_addr;
 }
@@ -157,7 +165,11 @@ xabort_errno(int error_code, const char *msg)
 	}
 
 	syscall_no_intercept(SYS_write, 2, main_msg, sizeof(main_msg) - 1);
+#ifdef SYS_exit_group
 	syscall_no_intercept(SYS_exit_group, 1);
+#else
+	syscall_no_intercept(SYS_exit, 1);
+#endif
 
 	unreachable();
 }

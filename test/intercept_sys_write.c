@@ -33,7 +33,7 @@
 #include "libsyscall_intercept_hook_point.h"
 
 #include <stddef.h>
-#include <syscall.h>
+#include <sys/syscall.h>
 #include <string.h>
 
 static int

@@ -79,8 +79,8 @@ set(asm_patterns_failing
 	pattern_jmps)
 
 macro(add_asm_test test_name failing)
-	add_library(${test_name}.in SHARED ${test_name}.in.s)
-	add_library(${test_name}.out SHARED ${test_name}.out.s)
+	add_library(${test_name}.in SHARED ${test_name}.in.S)
+	add_library(${test_name}.out SHARED ${test_name}.out.S)
 	if(LINKER_HAS_NOSTDLIB)
 		set_target_properties(${test_name}.in
 			PROPERTIES LINK_FLAGS "-nostdlib")
@@ -131,6 +131,8 @@ add_test(NAME "logging"
 	-DSECOND_MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/libcintercept0_child.log.match
 	${CHECK_LOG_COMMON_ARGS})
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+
 add_executable(hook_test hook_test.c)
 add_library(hook_test_preload SHARED hook_test_preload.c)
 target_link_libraries(hook_test_preload PRIVATE syscall_intercept_shared)
@@ -157,6 +159,8 @@ add_test(NAME "hook_clone"
 	-DHAS_SECOND_LOG=1
 	-DSECOND_MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/libcintercept0_child.log.match
 	${CHECK_LOG_COMMON_ARGS})
+
+endif()
 
 add_executable(filter_test filter_test.c)
 target_link_libraries(filter_test PRIVATE syscall_intercept_shared)
@@ -189,6 +193,8 @@ add_test(NAME "filter_negative"
 set_tests_properties("filter_negative"
 	PROPERTIES PASS_REGULAR_EXPRESSION "disallowed")
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+
 add_executable(test_clone_thread test_clone_thread.c)
 target_link_libraries(test_clone_thread PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 add_library(test_clone_thread_preload SHARED test_clone_thread_preload.c)
@@ -202,11 +208,12 @@ add_test(NAME "clone_thread"
 	-P ${CMAKE_CURRENT_SOURCE_DIR}/check.cmake)
 set_tests_properties("clone_thread"
 	PROPERTIES PASS_REGULAR_EXPRESSION "clone_hook_child called")
+endif()
 
 add_library(intercept_sys_write SHARED intercept_sys_write.c)
 target_link_libraries(intercept_sys_write PRIVATE syscall_intercept_shared)
 
-add_executable(executable_with_syscall_pie executable_with_syscall.s)
+add_executable(executable_with_syscall_pie executable_with_syscall.S)
 if(HAS_NOUNUSEDARG)
 	target_compile_options(executable_with_syscall_pie BEFORE
 		PRIVATE "-Wno-unused-command-line-argument")
@@ -218,7 +225,7 @@ if(HAS_ARG_PIE)
 	target_link_libraries(executable_with_syscall_pie PRIVATE "-pie")
 endif()
 
-add_executable(executable_with_syscall_no_pie executable_with_syscall.s)
+add_executable(executable_with_syscall_no_pie executable_with_syscall.S)
 if(HAS_NOUNUSEDARG)
 	target_compile_options(executable_with_syscall_no_pie BEFORE
 		PRIVATE "-Wno-unused-command-line-argument")

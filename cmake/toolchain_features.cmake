@@ -66,6 +66,8 @@ check_c_compiler_flag(-Wno-c11-extensions HAS_NOC11WARN)
 check_c_compiler_flag(-Wl,-nostdlib LINKER_HAS_NOSTDLIB)
 check_c_compiler_flag(-Wl,--fatal-warnings HAS_WLFATAL)
 check_c_compiler_flag(-Wno-unused-command-line-argument HAS_NOUNUSEDARG)
+check_c_compiler_flag(-Wno-deprecated-declarations
+			SYSCALL_INTERCEPT_NOWARNDECRECATED)
 check_c_compiler_flag(-pie HAS_ARG_PIE)
 check_c_compiler_flag(-nopie HAS_ARG_NOPIE)
 check_c_compiler_flag(-no-pie HAS_ARG_NO_PIE)
@@ -166,17 +168,30 @@ set(orig_req_libs ${CMAKE_REQUIRED_LIBRARIES})
 set(CMAKE_REQUIRED_LIBRARIES ${CMAKE_DL_LIBS})
 
 #####################################################
-# headers, symbols needed for finding/decoding objects on GNU/Linux
+# dladdr is a common libc extentsion
 #
-check_include_files(elf.h SYSCALL_INTERCEPT_ELF_H)
 check_include_files(dlfcn.h SYSCALL_INTERCEPT_DLFCN_H)
-check_include_files(link.h SYSCALL_INTERCEPT_LINK_H)
 if(SYSCALL_INTERCEPT_DLFCN_H)
 	check_function_exists(dladdr SYSCALL_INTERCEPT_DLADDR)
 endif()
 
+#####################################################
+# headers, symbols needed for finding/decoding objects on GNU/Linux
+#
+check_include_files(elf.h SYSCALL_INTERCEPT_ELF_H)
+check_include_files(link.h SYSCALL_INTERCEPT_LINK_H)
+
 if(SYSCALL_INTERCEPT_LINK_H)
 	check_function_exists(dl_iterate_phdr SYSCALL_INTERCEPT_DL_ITERATE_PHDR)
+endif()
+
+#####################################################
+# headers, symbols needed for finding/decoding objects on Mac OSX
+#
+check_include_files(mach-o/dyld.h SYSCALL_INTERCEPT_MACHO_DYLD_H)
+
+if(SYSCALL_INTERCEPT_MACHO_DYLD_H)
+	check_function_exists(_dyld_get_image_header SYSCALL_INTERCEPT_DYLD_GET_I_HEADER)
 endif()
 
 #####################################################
@@ -280,3 +295,37 @@ int main(void) {
 }
 "
  SYSCALL_INTERCEPT_BUILTIN_UNREACHABLE)
+
+#####################################################
+#
+# clang diagnostic push/pop pragmas
+#
+# language extension
+#
+check_c_source_compiles("
+int main(void) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored \"-Wunused-variable\"
+	int x;
+#pragma clang diagnostic pop
+	return 0;
+}
+"
+ SYSCALL_INTERCEPT_CLANG_DIAGNOSTIC_PRAGMA)
+
+#####################################################
+#
+# GCC diagnostic push/pop pragmas
+#
+# language extension
+#
+check_c_source_compiles("
+int main(void) {
+#pragma gcc diagnostic push
+#pragma gcc diagnostic ignored \"-Wunused-variable\"
+	int x;
+#pragma gcc diagnostic pop
+	return 0;
+}
+"
+ SYSCALL_INTERCEPT_GCC_DIAGNOSTIC_PRAGMA)

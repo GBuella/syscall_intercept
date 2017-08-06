@@ -46,7 +46,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <syscall.h>
+#include <sys/syscall.h>
 #include <sys/mman.h>
 
 #include "intercept.h"
@@ -143,6 +143,69 @@ log_header(void)
 }
 
 /*
+ * is_hooking_supported -- filters out some syscalls known
+ * to do things with the stack, or the stack pointer, that makes
+ * calling them from a C function impossible. These might need some
+ * hand written assembly code to handle the situation arising
+ * after return from syscalls.
+ *
+ * The clone syscall on Linux is a case, for which some code is
+ * already prepared, and this function returns true for that syscall.
+ */
+static bool
+is_hooking_supported(long syscall_number)
+{
+	(void) syscall_number;
+
+#ifdef SYS_vfork
+	if (syscall_number == SYS_vfork)
+		return false;
+#endif
+
+#ifdef SYS_rt_sigreturn
+	if (syscall_number == SYS_rt_sigreturn)
+		return false;
+#endif
+
+#ifdef SYS_bsdthread_create
+	if (syscall_number == SYS_bsdthread_create)
+		return false;
+#endif
+
+#if defined(SYS_clone) && !defined(__linux)
+	/*
+	 * If some other system has a syscall called clone, it probably
+	 * needs more analysis before syscall_intercept claims support
+	 * for hooking it.
+	 */
+	if (syscall_number == SYS_clone)
+		return false;
+#endif
+
+	return true;
+}
+
+/*
+ * is_linux_clone_thread -- is the syscall a clone syscall altering
+ * the stack pointer?
+ * On Linux, arg1 is a pointer to be used as the stack pointer of
+ * a newly created thread.
+ */
+static bool
+is_linux_clone_thread(long syscall_number, long arg1)
+{
+#if defined(SYS_clone) && defined(__linux)
+	if (syscall_number == SYS_clone && arg1 != 0)
+		return true;
+#else
+	(void) syscall_number;
+	(void) arg1;
+#endif
+
+	return false;
+}
+
+/*
  * intercept_routine(...)
  * This is the function called from the asm wrappers,
  * forwarding the syscall parameters to a hook function
@@ -197,10 +260,8 @@ intercept_routine(long nr, long arg0, long arg1,
 		forward_to_kernel = intercept_hook_point(nr,
 		    arg0, arg1, arg2, arg3, arg4, arg5, &result);
 
-	if (nr == SYS_vfork || nr == SYS_rt_sigreturn) {
-		/* can't handle these syscall the normal way */
+	if (!is_hooking_supported(nr))
 		xlongjmp(return_to_asm_wrapper_syscall, rsp_in_asm_wrapper, nr);
-	}
 
 	if (forward_to_kernel) {
 		/*
@@ -215,7 +276,7 @@ intercept_routine(long nr, long arg0, long arg1,
 		 * the clone_child_intercept_routine instead, executing
 		 * it on the new child threads stack, then returns to libc.
 		 */
-		if (nr == SYS_clone && arg1 != 0)
+		if (is_linux_clone_thread(nr, arg1))
 			result = clone_wrapper(arg0, arg1, arg2, arg3, arg4);
 		else
 			result = syscall_no_intercept(nr,

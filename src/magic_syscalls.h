@@ -61,13 +61,35 @@
 #ifndef SYSCALL_INTERCEPT_WITHOUT_MAGIC_SYSCALLS
 
 
-#include <syscall.h>
+#include <sys/syscall.h>
 #include <unistd.h>
+
+#include "config.h"
 
 enum { SYSCALL_INT_MAGIC_WRITE_FD = 123 };
 
 static const char start_log_message[] = "SYSCALL_INTERCEPT_TEST_START_LOG";
 static const char stop_log_message[] = "SYSCALL_INTERCEPT_TEST_STOP_LOG";
+
+/*
+ * Locally disable warnings about deprecated symbols.
+ *
+ * The syscall function in Apple libc is deprecated, but it is only
+ * used for testing, so using it shouldn't be a big problem.
+ */
+#ifdef SYSCALL_INTERCEPT_NOWARNDECRECATED
+#ifdef SYSCALL_INTERCEPT_CLANG_DIAGNOSTIC_PRAGMA
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
+#elif defined(SYSCALL_INTERCEPT_GCC_DIAGNOSTIC_PRAGMA)
+
+#pragma gcc diagnostic push
+#pragma gcc diagnostic ignored "-Wdeprecated-declarations"
+
+#endif
+#endif
 
 static inline void
 magic_syscall_start_log(const char *path, const char *trunc)
@@ -83,6 +105,18 @@ magic_syscall_stop_log(void)
 	syscall(SYS_write, SYSCALL_INT_MAGIC_WRITE_FD,
 	    stop_log_message, sizeof(stop_log_message));
 }
+
+#ifdef SYSCALL_INTERCEPT_NOWARNDECRECATED
+#ifdef SYSCALL_INTERCEPT_CLANG_DIAGNOSTIC_PRAGMA
+
+#pragma clang diagnostic pop
+
+#elif defined(SYSCALL_INTERCEPT_GCC_DIAGNOSTIC_PRAGMA)
+
+#pragma gcc diagnostic pop
+
+#endif
+#endif
 
 int
 handle_magic_syscalls(long nr, long arg0, long arg1,
