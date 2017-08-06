@@ -91,6 +91,7 @@ if(SYSCALL_INTERCEPT_ELF_H AND SYSCALL_INTERCEPT_DL_ITERATE_PHDR)
 else()
 	if(SYSCALL_INTERCEPT_MACHO_DYLD_H AND SYSCALL_INTERCEPT_DYLD_GET_I_HEADER)
 		set(SOURCES_C ${SOURCES_C}
+			src/macho/analyze_object.c
 			src/macho/detect_objects.c)
 	else()
 		message(FATAL_ERROR "Unable to determine object format to use")

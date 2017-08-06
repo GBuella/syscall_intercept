@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2017, Intel Corporation
+ * Copyright 2017, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,29 +30,10 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "name.s"
-
-.global NAME(xlongjmp);
-
-.global NAME(has_ymm_registers);
-
-.text
-
-NAME(xlongjmp):
-	.cfi_startproc
-	movq        %rdx, %rax
-	movq        %rsi, %rsp
-	jmp         *%rdi
-	.cfi_endproc
-
-NAME(has_ymm_registers):
-	.cfi_startproc
-	pushq       %rbx
-	movq        $0x1, %rax
-	cpuid
-	movq        %rcx, %rax
-	shrq        $28, %rax
-	andq        $1, %rax
-	popq        %rbx
-	retq
-	.cfi_endproc
+#ifdef __APPLE__
+#define NAME(x) _##x
+#define SIZE(x)
+#else
+#define NAME(x) x
+#define SIZE(x) .size x, .-x
+#endif

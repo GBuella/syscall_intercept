@@ -34,6 +34,8 @@
 #include "detect_objects.h"
 #include "obj_desc.h"
 
+#include <stdio.h>
+
 #include <stdbool.h>
 
 /* XXX */
@@ -56,6 +58,8 @@ detect_object(const struct mach_header *header, const char *name)
 {
 	if (header == NULL)
 		return;
+
+	puts(name);
 
 	should_patch_object(name);
 }

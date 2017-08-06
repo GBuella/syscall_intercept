@@ -43,7 +43,7 @@
 #include <errno.h>
 #include <stdbool.h>
 #include <sched.h>
-#include <syscall.h>
+#include <sys/syscall.h>
 #include <stdlib.h>
 
 #define FORK_MAX_COUNT 16
@@ -61,8 +61,16 @@ static bool
 specifies_new_stack(long syscall_number, long arg0, long arg1)
 {
 	(void) arg0;
+#if defined(SYS_clone) && defined(__linux)
 
 	return syscall_number == SYS_clone && (arg1 != 0);
+
+#else
+	(void) syscall_number;
+	(void) arg1;
+
+	return false;
+#endif
 }
 
 /*
@@ -76,8 +84,15 @@ is_syscall_fork(long syscall_number, long arg0)
 	if (syscall_number == SYS_fork || syscall_number == SYS_vfork)
 		return true;
 
+#if defined(SYS_clone) && defined(__linux)
+
 	if (syscall_number == SYS_clone && (arg0 & CLONE_THREAD) == 0)
 		return true;
+#else
+
+	(void) arg0;
+
+#endif
 
 	return false;
 }

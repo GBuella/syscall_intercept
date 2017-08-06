@@ -37,7 +37,7 @@
 #include <limits.h>
 #include <stdbool.h>
 #include <stdlib.h>
-#include <syscall.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <ctype.h>
