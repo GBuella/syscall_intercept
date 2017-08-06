@@ -108,7 +108,7 @@ xabort(const char *msg)
 	syscall_no_intercept(SYS_write, 2, main_msg, sizeof(main_msg));
 	syscall_no_intercept(SYS_exit_group, 1);
 
-	__builtin_trap();
+	unreachable();
 }
 
 bool debug_dumps_on;

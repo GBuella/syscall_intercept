@@ -40,6 +40,10 @@ if(",${CMAKE_SOURCE_DIR}," STREQUAL ",${CMAKE_BINARY_DIR},")
 	message(FATAL_ERROR "In-source builds are not supported.")
 endif()
 
+if(NOT (CMAKE_SYSTEM_NAME STREQUAL "Linux"))
+	message(FATAL_ERROR "System not supported")
+endif()
+
 option(PERFORM_STYLE_CHECKS
 	"check coding style, license headers (requires perl)" ON)
 option(BUILD_TESTS "build and enable tests" ON)
@@ -58,7 +62,22 @@ set(SYSCALL_INTERCEPT_VERSION
 
 include(GNUInstallDirs)
 include(cmake/toolchain_features.cmake)
+
+if(NOT HAS_GCC_ATTR_CONSTR)
+	message(FATAL_ERROR "constructor attribute support required")
+endif()
+
+if(NOT SYSCALL_INTERCEPT_DL_ITERATE_PHDR)
+	message(FATAL_ERROR "dl_iterate_phdr function required")
+endif()
+
+if(NOT SYSCALL_INTERCEPT_SYS_SYSCALL_H)
+	message(FATAL_ERROR "sys/syscall.h header is required (where are the syscall numbers?)")
+endif()
+
 include(cmake/find_capstone.cmake)
+
+configure_file(config.h.in config.h)
 
 # main source files - intentionally excluding src/entry.c
 set(SOURCES_C
@@ -80,7 +99,7 @@ set(SOURCES_ASM
 	src/util.s)
 
 
-include_directories(include)
+include_directories(include ${CMAKE_CURRENT_BINARY_DIR})
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 

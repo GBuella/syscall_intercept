@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2017, Intel Corporation
+ * Copyright 2017, Intel Corporation
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,69 +30,49 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SYSCALL_INTERCEPT_UTIL_H
-#define SYSCALL_INTERCEPT_UTIL_H
+#ifndef SYSCALL_INTERCEPT_CONFIG_H
+#define SYSCALL_INTERCEPT_CONFIG_H
 
-#include "config.h"
+#cmakedefine SYSCALL_INTERCEPT_ELF_H
+#cmakedefine SYSCALL_INTERCEPT_GCC_PRAGMA_SYSH
+#cmakedefine SYSCALL_INTERCEPT_GETAUXVAL
+#cmakedefine SYSCALL_INTERCEPT_WITH_GLIBC
+#cmakedefine SYSCALL_INTERCEPT_DLADDR
+#cmakedefine SYSCALL_INTERCEPT_DL_ITERATE_PHDR
+#cmakedefine SYSCALL_INTERCEPT_NORETURN_KEYWORD
+#cmakedefine SYSCALL_INTERCEPT_NORETURN_MACRO
+#cmakedefine SYSCALL_INTERCEPT_NORETURN_ATTRIBUTE
+#cmakedefine SYSCALL_INTERCEPT_FORMAT_ATTRIBUTE
+#cmakedefine SYSCALL_INTERCEPT_BUILTIN_UNREACHABLE
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <sys/types.h>
+#ifdef SYSCALL_INTERCEPT_NORETURN_MACRO
+#include <stdnoreturn.h>
+#elif defined(SYSCALL_INTERCEPT_NORETURN_KEYWORD)
+#define noreturn _Noreturn
+#elif defined(SYSCALL_INTERCEPT_NORETURN_ATTRIBUTE)
+#define noreturn __attribute__((noreturn))
+#else
+#define noreturn
+#endif
 
-extern bool debug_dumps_on;
-void debug_dump(const char *fmt, ...) ATTR_FORMAT(printf, 1, 2);
+noreturn static inline
+void unreachable(void)
+{
+#ifdef SYSCALL_INTERCEPT_BUILTIN_UNREACHABLE
+	__builtin_unreachable();
+#endif
+}
 
-/*
- * syscall_no_intercept - syscall without interception
- *
- * Call syscall_no_intercept to make syscalls
- * from the interceptor library, once glibc is already patched.
- * Don't use the syscall function from glibc, that
- * would just result in an infinite recursion.
- */
-long syscall_no_intercept(long syscall_number, ...);
+#ifdef SYSCALL_INTERCEPT_FORMAT_ATTRIBUTE
+#define ATTR_FORMAT(...) __attribute__((format(__VA_ARGS__)))
+#else
+#define ATTR_FORMAT(...)
+#endif
 
-/*
- * xlongjmp - a dumber version of longjmp.
- * Not using libc, and specific to X86_64.
- */
-noreturn void xlongjmp(long rip, long rsp, long rax);
-
-/*
- * xmmap_anon - get new memory mapping
- *
- * Not intercepted - does not call libc.
- * Always succeeds if returns - aborts the process on failure.
- */
-void *xmmap_anon(size_t size);
-
-/*
- * xmremap - no fail mremap
- */
-void *xmremap(void *addr, size_t old, size_t new);
-
-/*
- * xmunmap - no fail munmap
- */
-void xmunmap(void *addr, size_t len);
-
-/*
- * xlseek - no fail lseek
- *
- * Not intercepted - does not call libc.
- * Always succeeds if returns - aborts the process on failure.
- */
-long xlseek(long fd, unsigned long off, int whence);
-
-/*
- * xread - no fail read
- *
- * Not intercepted - does not call libc.
- * Always succeeds reading size bytes returns - aborts the process on failure.
- */
-void xread(long fd, void *buffer, size_t size);
-
-noreturn void xabort(const char *);
+#define CMAKE_VERSION "@CMAKE_VERSION@"
+#define CMAKE_C_COMPILER_ID "@CMAKE_C_COMPILER_ID@"
+#define CMAKE_C_COMPILER_VERSION "@CMAKE_C_COMPILER_VERSION@"
+#define CMAKE_C_FLAGS "@CMAKE_C_FLAGS@"
+#define CMAKE_BUILD_TYPE "@CMAKE_BUILD_TYPE@"
 
 #endif

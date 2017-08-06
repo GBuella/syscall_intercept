@@ -31,6 +31,10 @@
 
 # See: https://cmake.org/Wiki/CMake/Testing_With_CTest
 
+if(NOT SYSCALL_INTERCEPT_DLADDR)
+	message(FATAL_ERROR "dladdr is required for building tests (used in asm_pattern.c)")
+endif()
+
 if(EXPECT_SPURIOUS_SYSCALLS)
 	add_definitions(-DEXPECT_SPURIOUS_SYSCALLS)
 endif()

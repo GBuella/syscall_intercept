@@ -32,11 +32,32 @@
 
 /*
  * The syscall_intercept library might be compiled with stricter warning
- * settings than what is by capstone developers. The system header pragma
+ * settings than what is used by capstone developers. The system header pragma
  * is used to make sure some diagnostics triggered by the capstone header
  * don't break syscall_intercept build.
  */
-#ifdef HAS_GCC_PRAGMA_SYSH
+
+/* BEGIN CSTYLED */
+
+/*
+ * Examples of such hacks / language extensions used in capstone headers:
+ *
+ *
+ * /usr/include/capstone/capstone.h:97:23: error: enumerator value for ‘CS_MODE_BIG_ENDIAN’ is not an integer constant expression
+ *  CS_MODE_BIG_ENDIAN = 1 << 31, // big-endian mode
+ *                       ^
+ *
+ * /usr/include/capstone/arm.h:236:3: error: ISO C99 doesn’t support unnamed structs/unions
+ *   };
+ *    ^
+ *
+ */
+
+/* END CSTYLED */
+
+#include "config.h"
+
+#ifdef SYSCALL_INTERCEPT_GCC_PRAGMA_SYSH
 #pragma GCC system_header
 #endif
 
