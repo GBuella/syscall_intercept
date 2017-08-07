@@ -30,14 +30,18 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-.global _syscall_no_intercept;
+#include "macros.S"
+
+.global syscall_no_intercept;
+TYPE(syscall_no_intercept, function)
 
 .text
 
-_syscall_no_intercept:
+NAME(syscall_no_intercept):
 	movl        $0x2000000, %eax
 	movq        %rcx, %r10
 	syscall
 	jae         0f
 	neg         %rax
 0:	ret
+SIZE(syscall_no_intercept)

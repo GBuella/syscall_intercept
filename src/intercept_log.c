@@ -117,8 +117,10 @@ print_open_flags(char *buffer, int flags)
 		c += sprintf(c, "O_CREAT | ");
 	if ((flags & O_DIRECTORY) == O_DIRECTORY)
 		c += sprintf(c, "O_DIRECTORY | ");
+#ifdef O_DSYNC
 	if ((flags & O_DSYNC) == O_DSYNC)
 		c += sprintf(c, "O_DSYNC | ");
+#endif
 	if ((flags & O_EXCL) == O_EXCL)
 		c += sprintf(c, "O_EXCL | ");
 	if ((flags & O_NOCTTY) == O_NOCTTY)
@@ -152,8 +154,11 @@ print_open_flags(char *buffer, int flags)
 #ifdef O_RSYNC
 	flags &= ~O_RSYNC;
 #endif
+#ifdef O_DSYNC
+	flags &= ~O_DSYNC;
+#endif
 	flags &= ~(O_RDONLY | O_RDWR | O_WRONLY | O_APPEND |
-	    O_CLOEXEC | O_CREAT | O_DIRECTORY | O_DSYNC | O_EXCL |
+	    O_CLOEXEC | O_CREAT | O_DIRECTORY | O_EXCL |
 	    O_NOCTTY | O_NOFOLLOW | O_NONBLOCK | O_SYNC |
 	    O_TRUNC);
 
@@ -1302,8 +1307,10 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 		buf = print_syscall(buf, "getpid", 0, result_known, result);
 	} else if (nr == SYS_getppid) {
 		buf = print_syscall(buf, "getppid", 0, result_known, result);
+#ifdef SYS_gettid
 	} else if (nr == SYS_gettid) {
 		buf = print_syscall(buf, "gettid", 0, result_known, result);
+#endif
 #ifdef SYS_uname
 	} else if (nr == SYS_uname) {
 		buf = print_syscall(buf, "uname", 1,
@@ -1334,10 +1341,12 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				F_DEC, arg1,
 				result_known, result);
 #endif
+#ifdef SYS_pipe
 	} else if (nr == SYS_pipe) {
 		buf = print_syscall(buf, "pipe", 1,
 				F_HEX, arg0,
 				result_known, result);
+#endif
 #ifdef SYS_pipe2
 	} else if (nr == SYS_pipe2) {
 		buf = print_syscall(buf, "pipe2", 2,
@@ -1383,6 +1392,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				F_HEX, arg0,
 				result_known, result);
 #endif
+#ifdef SYS_getxattr
 	} else if (nr == SYS_getxattr) {
 		buf = print_syscall(buf, "getxattr", 4,
 				F_STR, arg0,
@@ -1390,6 +1400,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				F_BUF, arg3, arg2,
 				F_DEC, arg3,
 				result_known, result);
+#endif
 #ifdef SYS_lgetxattr
 	} else if (nr == SYS_lgetxattr) {
 		buf = print_syscall(buf, "lgetxattr", 4,
@@ -1399,6 +1410,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				F_DEC, arg3,
 				result_known, result);
 #endif
+#ifdef SYS_fgetxattr
 	} else if (nr == SYS_fgetxattr) {
 		buf = print_syscall(buf, "fgetxattr", 4,
 				F_DEC, arg0,
@@ -1406,6 +1418,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				F_BUF, arg3, arg2,
 				F_DEC, arg3,
 				result_known, result);
+#endif
 	} else if (nr == SYS_setrlimit) {
 		buf = print_syscall(buf, "setrlimit", 2,
 				F_DEC, arg0,

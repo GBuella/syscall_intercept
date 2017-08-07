@@ -128,7 +128,7 @@ write_pattern(const char *path_pattern, char *pattern)
 	int file_pattern, ret;
 
 	if ((file_pattern = open(path_pattern, O_WRONLY | O_CREAT | O_EXCL,
-					S_IRUSR | S_IRGRP | S_IROTH)) == -1) {
+					0444)) == -1) {
 		ERROR("open(): %s: %s", strerror(errno), path_pattern);
 		return -1;
 	}

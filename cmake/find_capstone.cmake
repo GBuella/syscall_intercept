@@ -39,5 +39,18 @@ if(NOT capstone_FOUND)
 endif()
 
 if(NOT capstone_FOUND)
+	find_library(CAPSTONE_PATH name capstone
+		HINTS /usr/lib /usr/local/lib)
+
+	if(NOT (CAPSTONE_PATH STREQUAL "CAPSTONE_PATH-NOTFOUND"))
+		get_filename_component(CAPSTONE_LIB_DIR "${CAPSTONE_PATH}" DIRECTORY)
+		set(capstone_LIBRARIES "-L${CAPSTONE_LIB_DIR} -lcapstone")
+		set(capstone_CFLAGS "-I${CAPSTONE_LIB_DIR}/../include/capstone")
+		set(capstone_FOUND 1)
+	endif()
+
+endif()
+
+if(NOT capstone_FOUND)
 	message(FATAL_ERROR "capstone library not found")
 endif()

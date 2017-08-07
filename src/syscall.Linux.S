@@ -30,12 +30,14 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include "macros.S"
+
 .global syscall_no_intercept;
-.type   syscall_no_intercept, @function
+TYPE(syscall_no_intercept, function)
 
 .text
 
-syscall_no_intercept:
+NAME(syscall_no_intercept):
 	movq        %rdi, %rax  /* convert from linux ABI calling */
 	movq        %rsi, %rdi  /* convention to syscall calling convention */
 	movq        %rdx, %rsi
@@ -46,4 +48,4 @@ syscall_no_intercept:
 	syscall
 	ret
 
-.size   syscall_no_intercept, .-syscall_no_intercept
+SIZE(syscall_no_intercept)

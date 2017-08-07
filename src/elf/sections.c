@@ -237,7 +237,9 @@ find_jumps_in_section_rela(struct obj_desc *obj,
 	for (size_t i = 0; i < sym_count; ++i) {
 		switch (ELF64_R_TYPE(syms[i].r_info)) {
 			case R_X86_64_RELATIVE:
+#ifdef R_X86_64_RELATIVE64
 			case R_X86_64_RELATIVE64:
+#endif
 				/* Relocation type: "Adjust by program base" */
 
 				debug_dump("jump target: %lx\n",

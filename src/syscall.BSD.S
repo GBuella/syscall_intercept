@@ -30,49 +30,18 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdbool.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/syscall.h>
+#include "macros.S"
 
-#include "libsyscall_intercept_hook_point.h"
+.global syscall_no_intercept;
+TYPE(syscall_no_intercept, function)
 
-static int
-hook(long syscall_number,
-	long arg0, long arg1,
-	long arg2, long arg3,
-	long arg4, long arg5,
-	long *result)
-{
-	(void) syscall_number;
-	(void) arg0;
-	(void) arg1;
-	(void) arg2;
-	(void) arg3;
-	(void) arg4;
-	(void) arg5;
-	(void) result;
+.text
 
-	static bool already_printed;
-	static const char *msg = "hooked - ";
-
-	if (!already_printed) {
-		already_printed = true;
-		syscall_no_intercept(SYS_write, 1, msg, strlen(msg));
-	}
-
-	return 1;
-}
-
-int
-main()
-{
-	intercept_hook_point = hook;
-
-	if (syscall_hook_in_process_allowed())
-		puts("allowed");
-	else
-		puts("disallowed");
-
-	return 0;
-}
+NAME(syscall_no_intercept):
+	mov         $0xc6,%eax
+	movq        %rcx, %r10
+	syscall
+	jae         0f
+	neg         %rax
+0:	ret
+SIZE(syscall_no_intercept)
