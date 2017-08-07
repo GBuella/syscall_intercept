@@ -32,7 +32,7 @@
 
 #include "macros.S"
 
-.global syscall_no_intercept;
+.global NAME(syscall_no_intercept);
 TYPE(syscall_no_intercept, function)
 
 .text
