@@ -67,7 +67,7 @@ check_c_compiler_flag(-Wl,-nostdlib LINKER_HAS_NOSTDLIB)
 check_c_compiler_flag(-Wl,--fatal-warnings HAS_WLFATAL)
 check_c_compiler_flag(-Wno-unused-command-line-argument HAS_NOUNUSEDARG)
 check_c_compiler_flag(-Wno-deprecated-declarations
-			SYSCALL_INTERCEPT_NOWARNDECRECATED)
+			SYSCALL_INTERCEPT_WNO_WARN_DEPCRECATED)
 check_c_compiler_flag(-pie HAS_ARG_PIE)
 check_c_compiler_flag(-nopie HAS_ARG_NOPIE)
 check_c_compiler_flag(-no-pie HAS_ARG_NO_PIE)
@@ -195,7 +195,7 @@ if(SYSCALL_INTERCEPT_MACHO_DYLD_H)
 endif()
 
 #####################################################
-# getauxval(3) needed for finding [vdso]
+# getauxval(3) needed for finding Linux [vdso] using glibc
 #
 check_include_files(sys/auxv.h SYSCALL_INTERCEPT_SYS_AUXV_H)
 if(SYSCALL_INTERCEPT_SYS_AUXV_H)
@@ -205,6 +205,11 @@ endif()
 check_include_files(sys/syscall.h SYSCALL_INTERCEPT_SYS_SYSCALL_H)
 
 set(CMAKE_REQUIRED_LIBRARIES ${orig_req_libs})
+
+#####################################################
+# mach headers, needed for finding suitable address for trampoline table on MAC OSX
+#
+check_include_files(mach/mach.h SYSCALL_INTERCEPT_MACH_H)
 
 #####################################################
 # _Noreturn keyword

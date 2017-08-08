@@ -77,7 +77,7 @@ static const char stop_log_message[] = "SYSCALL_INTERCEPT_TEST_STOP_LOG";
  * The syscall function in Apple libc is deprecated, but it is only
  * used for testing, so using it shouldn't be a big problem.
  */
-#ifdef SYSCALL_INTERCEPT_NOWARNDECRECATED
+#ifdef SYSCALL_INTERCEPT_WNO_WARN_DEPCRECATED
 #ifdef SYSCALL_INTERCEPT_CLANG_DIAGNOSTIC_PRAGMA
 
 #pragma clang diagnostic push
@@ -106,7 +106,7 @@ magic_syscall_stop_log(void)
 	    stop_log_message, sizeof(stop_log_message));
 }
 
-#ifdef SYSCALL_INTERCEPT_NOWARNDECRECATED
+#ifdef SYSCALL_INTERCEPT_WNO_WARN_DEPCRECATED
 #ifdef SYSCALL_INTERCEPT_CLANG_DIAGNOSTIC_PRAGMA
 
 #pragma clang diagnostic pop

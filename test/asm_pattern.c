@@ -48,12 +48,42 @@
 
 #include "libsyscall_intercept_hook_point.h"
 
+#include "config.h"
 #include "crawl_text.h"
 #include "analyze_object.h"
 #include "obj_desc.h"
 #include "patcher.h"
 #include "intercept.h"
 #include "intercept_util.h"
+#include "map_region_iterator.h"
+
+#ifdef SYSCALL_INTERCEPT_DYLD_GET_I_HEADER
+
+#include <mach-o/dyld.h>
+
+static ptrdiff_t
+get_vm_slide(const void *base)
+{
+	uint32_t count = _dyld_image_count();
+
+	for (uint32_t i = 0; i < count; ++i) {
+		if (_dyld_get_image_header(i) == base)
+			return _dyld_get_image_vmaddr_slide(i);
+	}
+
+	xabort("vm_slide not found");
+}
+
+#else
+
+static ptrdiff_t
+get_vm_slide(const void *base)
+{
+	(void) base;
+	return 0;
+}
+
+#endif
 
 /*
  * All test libraries are expected to provide the following symbols:
@@ -206,6 +236,7 @@ main(int argc, char **argv)
 	 * file.
 	 */
 	init_patcher();
+	map_iterator_init();
 
 	/*
 	 * obj->c_destination - The routine that would be called from the
@@ -222,6 +253,7 @@ main(int argc, char **argv)
 	 * these variables would refer to libc.
 	 */
 	obj->base_addr = lib_in.info.dli_fbase;
+	obj->vm_slide = get_vm_slide(obj->base_addr);
 	obj->path = lib_in.info.dli_fname;
 	obj->uses_trampoline_table = true;
 	obj->trampoline_table = lib_in.mock_trampoline_table;

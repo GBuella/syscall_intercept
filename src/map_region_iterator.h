@@ -30,75 +30,30 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef SYSCALL_INTERCEPT_OBJ_DESC_H
-#define SYSCALL_INTERCEPT_OBJ_DESC_H
+#ifndef SYSCALL_INTERCEPT_MAP_ITERATOR_H
+#define SYSCALL_INTERCEPT_MAP_ITERATOR_H
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
-#include "range.h"
-
-struct patch_desc;
-
-struct obj_desc {
-
-	/*
-	 * uses_trampoline_table - For now this is decided runtime
-	 * to make it easy to compare the operation of the library
-	 * with and without it. If it is OK, we can remove this
-	 * flag, and just always use the trampoline table.
-	 */
-	bool uses_trampoline_table;
-
-	unsigned char *base_addr;
-
-	/*
-	 * delta between vmem addresses and addresses in symbol tables,
-	 * non-zero for dynamic objects
-	 */
-	ptrdiff_t vm_slide;
-
-	/* where the object is in fs */
-	const char *path;
-
-	/* Where the text starts inside the shared object */
-	unsigned long text_offset;
-
-	/*
-	 * Where the text starts and ends in the virtual memory seen by the
-	 * current process.
-	 */
-	unsigned char *text_start;
-	unsigned char *text_end;
-
-
-	struct patch_desc *items;
-	unsigned patch_count;
-	unsigned char *jump_table;
-
-	size_t nop_count;
-	size_t max_nop_count;
-	struct range *nop_table;
-
-	void *c_destination;
-	void *c_destination_clone_child;
-
-	unsigned char *trampoline_table;
-	size_t trampoline_table_size;
-
-	unsigned char *next_trampoline;
-
-	struct obj_desc *next;
+struct map {
+	unsigned char *start;
+	unsigned char *end;
 };
 
-struct obj_desc *obj_desc_allocate(void);
+static inline bool
+is_map_null(struct map m)
+{
+	return m.end == NULL;
+}
 
-bool has_jump(const struct obj_desc *desc, unsigned char *addr);
-void mark_jump(const struct obj_desc *desc, const unsigned char *addr);
-void mark_nop(struct obj_desc *desc, unsigned char *address, size_t size);
+struct map_iterator;
 
-void allocate_jump_table(struct obj_desc *);
-void allocate_nop_table(struct obj_desc *);
-void allocate_trampoline_table(struct obj_desc *);
+uintptr_t get_min_address(void);
+void map_iterator_init(void);
+struct map_iterator *map_iterator_start(void *address);
+struct map map_iterator_advance(struct map_iterator **);
+void map_iterator_end(struct map_iterator **);
 
 #endif

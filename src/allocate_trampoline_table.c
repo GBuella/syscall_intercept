@@ -30,48 +30,14 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "obj_desc.h"
+#include "map_region_iterator.h"
 #include "intercept_util.h"
+#include "obj_desc.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <sys/mman.h>
+#include <sys/syscall.h>
 
-/*
- * get_min_address
- * Looks for the lowest address that might be mmap-ed. This is
- * useful while looking for space for a trampoline table close
- * to some text section.
- */
-static uintptr_t
-get_min_address(void)
-{
-	static uintptr_t min_address;
-
-	if (min_address != 0)
-		return min_address;
-
-	min_address = 0x10000; /* best guess */
-
-	FILE *f = fopen("/proc/sys/vm/mmap_min_addr,", "r");
-
-	if (f != NULL) {
-		char line[64];
-		if (fgets(line, sizeof(line), f) != NULL)
-			min_address = (uintptr_t)atoll(line);
-
-		fclose(f);
-	}
-
-	return min_address;
-}
-
-/*
- * allocate_trampoline_table
- * Allocates memory close to a text section (close enough
- * to be reachable with 32 bit displacements in jmp instructions).
- * Using mmap syscall with MAP_FIXED flag.
- */
 void
 allocate_trampoline_table(struct obj_desc *desc)
 {
@@ -87,9 +53,7 @@ allocate_trampoline_table(struct obj_desc *desc)
 		return;
 	}
 
-	FILE *maps;
-	char line[0x100];
-	unsigned char *guess; /* Where we would like to allocate the table */
+	unsigned char *guess;
 	size_t size;
 
 	if ((uintptr_t)desc->text_end < INT32_MAX) {
@@ -112,24 +76,17 @@ allocate_trampoline_table(struct obj_desc *desc)
 
 	size = 64 * 0x1000; /* XXX: don't just guess */
 
-	if ((maps = fopen("/proc/self/maps", "r")) == NULL)
-		xabort("fopen /proc/self/maps");
-
-	while ((fgets(line, sizeof(line), maps)) != NULL) {
-		unsigned char *start;
-		unsigned char *end;
-
-		if (sscanf(line, "%p-%p", (void **)&start, (void **)&end) != 2)
-			xabort("sscanf from /proc/self/maps");
-
+	struct map_iterator *it = map_iterator_start((void *)guess);
+	struct map m;
+	while (!is_map_null(m = map_iterator_advance(&it))) {
 		/*
 		 * Let's see if an existing mapping overlaps
 		 * with the guess!
 		 */
-		if (end < guess)
+		if (m.end < guess)
 			continue; /* No overlap, let's see the next mapping */
 
-		if (start >= guess + size) {
+		if (m.start >= guess + size) {
 			/* The rest of the mappings can't possibly overlap */
 			break;
 		}
@@ -138,24 +95,24 @@ allocate_trampoline_table(struct obj_desc *desc)
 		 * The next guess is the page following the mapping seen
 		 * just now.
 		 */
-		guess = end;
+		guess = m.end;
 
 		if (guess + size >= desc->text_start + INT32_MAX) {
 			/* Too far away */
 			xabort("unable to find place for trampoline table");
 		}
 	}
+	map_iterator_end(&it);
 
-	fclose(maps);
-
-	desc->trampoline_table = mmap(guess, size,
+	long result = syscall_no_intercept(SYS_mmap, guess, size,
 					PROT_READ | PROT_WRITE | PROT_EXEC,
 					MAP_FIXED | MAP_PRIVATE | MAP_ANON,
 					-1, 0);
 
-	if (desc->trampoline_table == MAP_FAILED)
+	if (result < 0 && result >= -0x1000)
 		xabort("unable to allocate space for trampoline table");
 
+	desc->trampoline_table = (void *)result;
 	desc->trampoline_table_size = size;
 
 	desc->next_trampoline = desc->trampoline_table;

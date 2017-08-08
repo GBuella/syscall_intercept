@@ -159,6 +159,7 @@ obj_desc_allocate(void)
 	obj->nop_count = 0;
 	obj->max_nop_count = 0;
 	obj->patch_count = 0;
+	obj->text_start = obj->text_end = NULL;
 
 	return obj;
 }

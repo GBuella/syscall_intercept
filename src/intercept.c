@@ -58,6 +58,7 @@
 #include "analyze_object.h"
 #include "crawl_text.h"
 #include "magic_syscalls.h"
+#include "map_region_iterator.h"
 #include "patcher.h"
 #include "obj_desc.h"
 
@@ -101,6 +102,7 @@ intercept(void)
 			getenv("INTERCEPT_LOG_TRUNC"));
 	log_header();
 	init_patcher();
+	map_iterator_init();
 
 	struct object_list list =
 		detect_objects(patch_all_objs ? 0 : detect_libc_only);
@@ -113,9 +115,11 @@ intercept(void)
 		obj->c_destination_clone_child =
 		    (void *)((uintptr_t)&clone_child_intercept_routine);
 		analyze_object(obj);
-		crawl_text(obj);
-		allocate_trampoline_table(obj);
-		create_patch_wrappers(obj);
+		if (obj->text_start != NULL) {
+			crawl_text(obj);
+			allocate_trampoline_table(obj);
+			create_patch_wrappers(obj);
+		}
 	}
 
 	mprotect_asm_wrappers();

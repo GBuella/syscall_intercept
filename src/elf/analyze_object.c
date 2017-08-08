@@ -76,6 +76,9 @@ analyze_object(struct obj_desc *obj)
 	struct sections sections;
 	find_sections(obj, &sections, fd);
 
+	if (obj->text_start == NULL)
+		return;
+
 	debug_dump(
 	    "%s .text mapped at 0x%016" PRIxPTR " - 0x%016" PRIxPTR " \n",
 	    obj->path,

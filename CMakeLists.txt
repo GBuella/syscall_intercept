@@ -73,8 +73,8 @@ configure_file(config.h.in config.h)
 
 # main source files - intentionally excluding src/entry.c
 set(SOURCES_C
-	src/crawl_text.c
 	src/allocate_trampoline_table.c
+	src/crawl_text.c
 	src/disasm_wrapper.c
 	src/intercept.c
 	src/obj_desc.c
@@ -109,10 +109,21 @@ else()
 		set(SOURCES_ASM ${SOURCES_ASM} src/syscall.BSD.S)
 	else()
 		if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+			set(SYSCALL_INTERCEPT_PROC_FS_AVAILABLE 1)
 			set(SOURCES_ASM ${SOURCES_ASM} src/syscall.Linux.S)
 		else()
 			message(FATAL_ERROR "System not supported")
 		endif()
+	endif()
+endif()
+
+if(SYSCALL_INTERCEPT_PROC_FS_AVAILABLE)
+	set(SOURCES_C ${SOURCES_C} src/map_region_iterator_procfs.c)
+else()
+	if(SYSCALL_INTERCEPT_MACH_H)
+		set(SOURCES_C ${SOURCES_C} src/map_region_iterator_mach.c)
+	else()
+		message(FATAL_ERROR "System not supported")
 	endif()
 endif()
 
