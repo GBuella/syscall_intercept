@@ -34,14 +34,28 @@
 
 .global NAME(syscall_no_intercept);
 TYPE(syscall_no_intercept, function)
+.global NAME(raw_syscall_no_intercept);
+TYPE(raw_syscall_no_intercept, function)
 
 .text
 
 NAME(syscall_no_intercept):
-	movl        $0x2000000, %eax
+	movl        $0x2000000, %eax /* Unix syscall */
 	movq        %rcx, %r10
 	syscall
 	jae         0f
 	neg         %rax
 0:	ret
-SIZE(syscall_no_intercept)
+
+NAME(raw_syscall_no_intercept):
+	movq        %rdi, %rax
+	movq        %rsi, %rdi
+	movq        %rdx, %rsi
+	movq        %rcx, %rdx
+	movq        %r8, %r10
+	movq        %r9, %r8
+	movq        8(%rsp), %r9
+	syscall
+	jae         0f
+	neg         %rax
+0:	ret

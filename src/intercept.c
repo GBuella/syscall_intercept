@@ -260,8 +260,9 @@ intercept_routine(long nr, long arg0, long arg1,
 	intercept_log_syscall(libpath, nr, arg0, arg1, arg2, arg3, arg4, arg5,
 	    syscall_offset, UNKNOWN, 0);
 
-	if (intercept_hook_point != NULL)
-		forward_to_kernel = intercept_hook_point(nr,
+	if (intercept_hook_point != NULL &&
+	    get_syscall_class(nr) == SYSCALL_CLASS_UNIX)
+		forward_to_kernel = intercept_hook_point(get_syscall_number(nr),
 		    arg0, arg1, arg2, arg3, arg4, arg5, &result);
 
 	if (!is_hooking_supported(nr))
@@ -283,7 +284,7 @@ intercept_routine(long nr, long arg0, long arg1,
 		if (is_linux_clone_thread(nr, arg1))
 			result = clone_wrapper(arg0, arg1, arg2, arg3, arg4);
 		else
-			result = syscall_no_intercept(nr,
+			result = raw_syscall_no_intercept(nr,
 			    arg0, arg1, arg2, arg3, arg4, arg5);
 	}
 

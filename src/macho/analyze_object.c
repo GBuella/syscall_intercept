@@ -45,6 +45,7 @@ struct analysis {
 	const struct symtab_command *symtab;
 	const struct segment_command_64 *linkedit_segment;
 	const struct linkedit_data_command *function_starts;
+	uint32_t text_section_file_offset;
 };
 
 static const struct load_command *
@@ -101,6 +102,11 @@ parse_function_starts(struct analysis *analysis)
 		offset += read_LEB128(&c);
 		debug_dump("c = %016" PRIxPTR " function at: %016" PRIx64 "\n",
 				(uintptr_t)c, offset);
+		if (offset > analysis->text_section_file_offset) {
+			const unsigned char *addr = analysis->obj->text_start;
+			addr += offset - analysis->text_section_file_offset;
+			mark_jump(analysis->obj, addr);
+		}
 	}
 }
 
@@ -112,17 +118,19 @@ find_text_section(const struct segment_command_64 *command,
 	const struct section_64 *section = (const struct section_64 *)addr;
 
 	uint32_t n = command->nsects;
-	while (strcmp(section->sectname, SECT_TEXT) != 0) {
-		if (n == 0)
-			return; /* not found */
+	while ((n > 0) && (strcmp(section->sectname, SECT_TEXT) != 0)) {
 		--n;
 		++section;
 	}
+
+	if (n == 0)
+		return; /* not found */
 
 	/* text section found */
 	addr = (uintptr_t)section->addr + analysis->obj->vm_slide;
 	analysis->obj->text_start = (unsigned char *)addr;
 	analysis->obj->text_end = analysis->obj->text_start + section->size;
+	analysis->text_section_file_offset = section->offset;
 }
 
 static void

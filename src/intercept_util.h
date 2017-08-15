@@ -53,6 +53,62 @@ void debug_dump(const char *fmt, ...) ATTR_FORMAT(printf, 1, 2);
  */
 long syscall_no_intercept(long syscall_number, ...);
 
+#ifdef SYSCALL_INTERCEPT_USE_SYSCALL_CLASSES
+
+long raw_syscall_no_intercept(long syscall_number, ...);
+
+#define SYSCALL_CLASS_MACH 1 /* Mach */
+#define SYSCALL_CLASS_UNIX 2 /* Unix/BSD */
+#define SYSCALL_CLASS_MDEP 3 /* Machine-dependent */
+#define SYSCALL_CLASS_DIAG 4 /* Diagnostics */
+#define SYSCALL_CLASS_IPC 5 /* Mach IPC */
+
+static inline int
+get_syscall_class(long raw_syscall_number)
+{
+	return raw_syscall_number >> 24;
+}
+
+static inline int
+get_syscall_number(long raw_syscall_number)
+{
+	return raw_syscall_number & ~get_syscall_class(raw_syscall_number);
+}
+
+static inline long
+syscall_construct(int class, long syscall_number)
+{
+	return (class << 24) | syscall_number;
+}
+
+#else
+
+#define SYSCALL_CLASS_UNIX 0
+
+static inline int
+get_syscall_class(long raw_syscall_number)
+{
+	(void) raw_syscall_number;
+	return 0;
+}
+
+static inline int
+get_syscall_number(long raw_syscall_number)
+{
+	return raw_syscall_number;
+}
+
+static inline long
+syscall_construct(int class, long syscall_number)
+{
+	(void) class;
+	return syscall_number;
+}
+
+#define raw_syscall_no_intercept syscall_no_intercept
+
+#endif
+
 /*
  * xlongjmp - a dumber version of longjmp.
  * Not using libc, and specific to X86_64.

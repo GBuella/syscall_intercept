@@ -58,10 +58,8 @@ set(asm_patterns
 	pattern4
 	pattern_loop
 	pattern_loop2
-	pattern_symbol_boundary0
-	pattern_symbol_boundary1
-	pattern_symbol_boundary2
 	pattern_symbol_boundary3
+	pattern_symbol_boundary4
 	pattern_nop_padding0
 	pattern_nop_padding1
 	pattern_nop_padding2
@@ -72,6 +70,17 @@ set(asm_patterns
 	pattern_nop_padding7
 	pattern_nop_padding8
 	pattern_nop_padding9)
+
+# The three tests below make use of symbol size asm directive.
+# That directive is available while crearing ELF objects, but not
+# while creating mach-o objects. In mach-o, a symbol just ends where
+# the next symbol starts.
+if(SYSCALL_INTERCEPT_ELF_H AND SYSCALL_INTERCEPT_DL_ITERATE_PHDR)
+	set(asm_patterns ${asm_patterns}
+		pattern_symbol_boundary0
+		pattern_symbol_boundary1
+		pattern_symbol_boundary2)
+endif()
 
 set(asm_patterns_failing
 	pattern_double_syscall

@@ -69,8 +69,6 @@ endif()
 
 include(cmake/find_capstone.cmake)
 
-configure_file(config.h.in config.h)
-
 # main source files - intentionally excluding src/entry.c
 set(SOURCES_C
 	src/allocate_trampoline_table.c
@@ -103,9 +101,11 @@ set(SOURCES_ASM
 	src/util.S)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+	set(SYSCALL_INTERCEPT_USE_SYSCALL_CLASSES 1)
 	set(SOURCES_ASM ${SOURCES_ASM} src/syscall.XNU.S)
 else()
 	if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+		set(SYSCALL_INTERCEPT_USE_SYSCALL_CLASSES 1)
 		set(SOURCES_ASM ${SOURCES_ASM} src/syscall.BSD.S)
 	else()
 		if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -128,6 +128,8 @@ else()
 endif()
 
 include_directories(include ${CMAKE_CURRENT_BINARY_DIR} src)
+
+configure_file(config.h.in config.h)
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
