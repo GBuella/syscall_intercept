@@ -53,7 +53,7 @@ void debug_dump(const char *fmt, ...) ATTR_FORMAT(printf, 1, 2);
  */
 long syscall_no_intercept(long syscall_number, ...);
 
-#ifdef SYSCALL_INTERCEPT_USE_SYSCALL_CLASSES
+#ifdef SYSCALL_INTERCEPT_USE_XNU_SYSCALL_CLASSES
 
 long raw_syscall_no_intercept(long syscall_number, ...);
 
@@ -72,11 +72,11 @@ get_syscall_class(long raw_syscall_number)
 static inline int
 get_syscall_number(long raw_syscall_number)
 {
-	return raw_syscall_number & ~get_syscall_class(raw_syscall_number);
+	return raw_syscall_number & ~(0xff << 24);
 }
 
 static inline long
-syscall_construct(int class, long syscall_number)
+syscall_nr_construct(int class, long syscall_number)
 {
 	return (class << 24) | syscall_number;
 }
@@ -99,7 +99,7 @@ get_syscall_number(long raw_syscall_number)
 }
 
 static inline long
-syscall_construct(int class, long syscall_number)
+syscall_nr_construct(int class, long syscall_number)
 {
 	(void) class;
 	return syscall_number;

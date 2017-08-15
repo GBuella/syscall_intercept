@@ -370,7 +370,8 @@ NAME(intercept_asm_wrapper_simd_save):
 	 * The stack must be aligned to a 16 byte boundary right after the
 	 * push instructions, and before the call instruction.
 	 */
-	andq        $0x8, %rbp
+	movq        %rbp, %rcx
+	andq        $0x8, %rcx
 	jz          L3
 	subq        $0x8, %rsp
 L3:
@@ -404,6 +405,15 @@ NAME(intercept_asm_wrapper_push_origin_addr):
 .fill 5, 1, 0x90 /* syscall_offset */
 
 
+	cmpq        $0x2000000, %rax /* XNU SYS_syscall */
+	jne         0f
+	pushq       0(%rbp)
+	movq        %r10, %rcx
+	addq        $0x2000000, %rdi
+	neg         %rdi
+	jmp         1f
+0:
+
 	/*
 	 * Convert the arguments list to one used in
 	 * the linux x86_64 ABI. The reverse of what
@@ -423,6 +433,7 @@ NAME(intercept_asm_wrapper_push_origin_addr):
 	movq        %rsi, %rdx
 	movq        %rdi, %rsi
 	movq        %rax, %rdi
+1:
 
 	/*
 	 * Move the faked return address into r11, so that it can be

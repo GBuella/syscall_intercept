@@ -34,8 +34,10 @@
 #define NAME(x) _##x
 #define SIZE(x)
 #define TYPE(x, y)
+#define SYSCALL_CLASS_UNIX 0x2000000
 #else
 #define NAME(x) x
 #define SIZE(x) .size x, .-x
 #define TYPE(x, y) .type x, @##y
+#define SYSCALL_CLASS_UNIX 0
 #endif

@@ -82,12 +82,14 @@ set(SOURCES_C
 	src/magic_syscalls.c)
 
 if(SYSCALL_INTERCEPT_ELF_H AND SYSCALL_INTERCEPT_DL_ITERATE_PHDR)
+	set(PRELOAD_ENV_VAR_NAME LD_PRELOAD)
 	set(SOURCES_C ${SOURCES_C}
 		src/elf/detect_objects.c
 		src/elf/analyze_object.c
 		src/elf/sections.c)
 else()
 	if(SYSCALL_INTERCEPT_MACHO_DYLD_H AND SYSCALL_INTERCEPT_DYLD_GET_I_HEADER)
+		set(PRELOAD_ENV_VAR_NAME DYLD_INSERT_LIBRARIES)
 		set(SOURCES_C ${SOURCES_C}
 			src/macho/analyze_object.c
 			src/macho/detect_objects.c)
@@ -101,11 +103,10 @@ set(SOURCES_ASM
 	src/util.S)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-	set(SYSCALL_INTERCEPT_USE_SYSCALL_CLASSES 1)
+	set(SYSCALL_INTERCEPT_USE_XNU_SYSCALL_CLASSES 1)
 	set(SOURCES_ASM ${SOURCES_ASM} src/syscall.XNU.S)
 else()
 	if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
-		set(SYSCALL_INTERCEPT_USE_SYSCALL_CLASSES 1)
 		set(SOURCES_ASM ${SOURCES_ASM} src/syscall.BSD.S)
 	else()
 		if(CMAKE_SYSTEM_NAME STREQUAL "Linux")

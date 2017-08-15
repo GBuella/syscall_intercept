@@ -34,6 +34,7 @@
 # patch syscalls in the main executable object of a process.
 
 #include "macros.S"
+#include <sys/syscall.h>
 
 .intel_syntax noprefix
 
@@ -56,12 +57,14 @@ repne		scasb                  # scan memory to find null terminator
 		sub     rdi, rsi       # compute strlen
 		mov     rdx, rdi       # syscall argument: buffer len
 		mov     rdi, 1         # syscall argument: stdout
-		mov     rax, 1         # syscall number: SYS_write
+		mov     rax, SYS_write         # syscall number: SYS_write
+		add     rax, SYSCALL_CLASS_UNIX
 		syscall
 		mov     rdi, 1         # syscall argument: stdout
 		lea     rsi, [rip + newline] # syscall argument: buffer
 		mov     rdx, 1         # syscall argument: length
-		mov     rax, 1         # syscall number: SYS_write
+		mov     rax, SYS_write         # syscall number: SYS_write
+		add     rax, SYSCALL_CLASS_UNIX
 		syscall
 		mov     rax, 0         # return 0
 		ret

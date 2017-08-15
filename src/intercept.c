@@ -241,7 +241,7 @@ is_linux_clone_thread(long syscall_number, long arg1)
  *  from this function.
  */
 static void
-intercept_routine(long nr, long arg0, long arg1,
+intercept_routine(long orig_nr, long arg0, long arg1,
 			long arg2, long arg3,
 			long arg4, long arg5,
 			uint32_t syscall_offset,
@@ -253,6 +253,7 @@ intercept_routine(long nr, long arg0, long arg1,
 {
 	long result;
 	int forward_to_kernel = true;
+	long nr = (orig_nr > 0) ? orig_nr : -orig_nr;
 
 	if (handle_magic_syscalls(nr, arg0, arg1, arg2, arg3, arg4, arg5) == 0)
 		xlongjmp(return_to_asm_wrapper_syscall, rsp_in_asm_wrapper, 0);
@@ -266,7 +267,8 @@ intercept_routine(long nr, long arg0, long arg1,
 		    arg0, arg1, arg2, arg3, arg4, arg5, &result);
 
 	if (!is_hooking_supported(nr))
-		xlongjmp(return_to_asm_wrapper_syscall, rsp_in_asm_wrapper, nr);
+		xlongjmp(return_to_asm_wrapper_syscall, rsp_in_asm_wrapper,
+				orig_nr);
 
 	if (forward_to_kernel) {
 		/*

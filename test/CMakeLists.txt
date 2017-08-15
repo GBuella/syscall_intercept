@@ -122,6 +122,8 @@ foreach(name ${asm_patterns_failing})
 	add_asm_test(${name} TRUE)
 endforeach()
 
+set(CMAKE_COMMAND_X ${CMAKE_COMMAND} -DPRELOAD_ENV_VAR_NAME=${PRELOAD_ENV_VAR_NAME})
+
 set(CHECK_LOG_COMMON_ARGS
 	-DMATCH_SCRIPT=${PROJECT_SOURCE_DIR}/utils/match.pl
 	-DEXPECT_SPURIOUS_SYSCALLS=${EXPECT_SPURIOUS_SYSCALLS}
@@ -129,7 +131,7 @@ set(CHECK_LOG_COMMON_ARGS
 
 add_executable(logging_test logging_test.c)
 add_test(NAME "logging"
-	COMMAND ${CMAKE_COMMAND}
+	COMMAND ${CMAKE_COMMAND_X}
 	-DTEST_EXTRA_PRELOAD=${TEST_EXTRA_PRELOAD}
 	-DTEST_NAME=logging
 	-DLIB_FILE=$<TARGET_FILE:syscall_intercept_shared>
@@ -146,7 +148,7 @@ add_executable(hook_test hook_test.c)
 add_library(hook_test_preload SHARED hook_test_preload.c)
 target_link_libraries(hook_test_preload PRIVATE syscall_intercept_shared)
 add_test(NAME "hook"
-	COMMAND ${CMAKE_COMMAND}
+	COMMAND ${CMAKE_COMMAND_X}
 	-DTEST_EXTRA_PRELOAD=${TEST_EXTRA_PRELOAD}
 	-DTEST_NAME=hook
 	-DLIB_FILE=$<TARGET_FILE:hook_test_preload>
@@ -158,7 +160,7 @@ add_test(NAME "hook"
 add_library(hook_test_clone_preload SHARED hook_test_clone_preload.c)
 target_link_libraries(hook_test_clone_preload PRIVATE syscall_intercept_shared)
 add_test(NAME "hook_clone"
-	COMMAND ${CMAKE_COMMAND}
+	COMMAND ${CMAKE_COMMAND_X}
 	-DTEST_EXTRA_PRELOAD=${TEST_EXTRA_PRELOAD}
 	-DTEST_NAME=hook_clone
 	-DLIB_FILE=$<TARGET_FILE:hook_test_clone_preload>
@@ -175,7 +177,7 @@ add_executable(filter_test filter_test.c)
 target_link_libraries(filter_test PRIVATE syscall_intercept_shared)
 
 add_test(NAME "filter_none"
-	COMMAND ${CMAKE_COMMAND}
+	COMMAND ${CMAKE_COMMAND_X}
 	-DTEST_EXTRA_PRELOAD=${TEST_EXTRA_PRELOAD}
 	-DTEST_PROG=$<TARGET_FILE:filter_test>
 	-P ${CMAKE_CURRENT_SOURCE_DIR}/check.cmake)
@@ -185,7 +187,7 @@ set_tests_properties("filter_none"
 get_filename_component(filter_test_filename $<TARGET_FILE:filter_test> NAME)
 
 add_test(NAME "filter_positive"
-	COMMAND ${CMAKE_COMMAND}
+	COMMAND ${CMAKE_COMMAND_X}
 	-DTEST_EXTRA_PRELOAD=${TEST_EXTRA_PRELOAD}
 	-DFILTER=${filter_test_filename}
 	-DTEST_PROG=$<TARGET_FILE:filter_test>
@@ -194,7 +196,7 @@ set_tests_properties("filter_positive"
 	PROPERTIES PASS_REGULAR_EXPRESSION "hooked - allowed")
 
 add_test(NAME "filter_negative"
-	COMMAND ${CMAKE_COMMAND}
+	COMMAND ${CMAKE_COMMAND_X}
 	-DTEST_EXTRA_PRELOAD=${TEST_EXTRA_PRELOAD}
 	-DFILTER=non_matching_filter
 	-DTEST_PROG=$<TARGET_FILE:filter_test>
@@ -209,7 +211,7 @@ target_link_libraries(test_clone_thread PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 add_library(test_clone_thread_preload SHARED test_clone_thread_preload.c)
 target_link_libraries(test_clone_thread_preload PRIVATE syscall_intercept_shared)
 add_test(NAME "clone_thread"
-	COMMAND ${CMAKE_COMMAND}
+	COMMAND ${CMAKE_COMMAND_X}
 	-DTEST_EXTRA_PRELOAD=${TEST_EXTRA_PRELOAD}
 	-DFILTER=${test_clone_thread_filename}
 	-DTEST_PROG=$<TARGET_FILE:test_clone_thread>
@@ -250,7 +252,7 @@ elseif(HAS_ARG_NO_PIE)
 endif()
 
 add_test(NAME "prog_pie_intercept_libc_only"
-	COMMAND ${CMAKE_COMMAND}
+	COMMAND ${CMAKE_COMMAND_X}
 	-DTEST_EXTRA_PRELOAD=${TEST_EXTRA_PRELOAD}
 	-DTEST_PROG=$<TARGET_FILE:executable_with_syscall_pie>
 	-DLIB_FILE=$<TARGET_FILE:intercept_sys_write>
@@ -260,7 +262,7 @@ set_tests_properties("prog_pie_intercept_libc_only"
 	PROPERTIES PASS_REGULAR_EXPRESSION "original_syscall")
 
 add_test(NAME "prog_no_pie_intercept_libc_only"
-	COMMAND ${CMAKE_COMMAND}
+	COMMAND ${CMAKE_COMMAND_X}
 	-DTEST_EXTRA_PRELOAD=${TEST_EXTRA_PRELOAD}
 	-DTEST_PROG=$<TARGET_FILE:executable_with_syscall_no_pie>
 	-DLIB_FILE=$<TARGET_FILE:intercept_sys_write>
@@ -270,7 +272,7 @@ set_tests_properties("prog_no_pie_intercept_libc_only"
 	PROPERTIES PASS_REGULAR_EXPRESSION "original_syscall")
 
 add_test(NAME "prog_pie_intercept_all"
-	COMMAND ${CMAKE_COMMAND}
+	COMMAND ${CMAKE_COMMAND_X}
 	-DTEST_EXTRA_PRELOAD=${TEST_EXTRA_PRELOAD}
 	-DINTERCEPT_ALL=1
 	-DTEST_PROG=$<TARGET_FILE:executable_with_syscall_pie>
@@ -281,7 +283,7 @@ set_tests_properties("prog_pie_intercept_all"
 	PROPERTIES PASS_REGULAR_EXPRESSION "intercepted_call")
 
 add_test(NAME "prog_no_pie_intercept_all"
-	COMMAND ${CMAKE_COMMAND}
+	COMMAND ${CMAKE_COMMAND_X}
 	-DTEST_EXTRA_PRELOAD=${TEST_EXTRA_PRELOAD}
 	-DINTERCEPT_ALL=1
 	-DTEST_PROG=$<TARGET_FILE:executable_with_syscall_no_pie>

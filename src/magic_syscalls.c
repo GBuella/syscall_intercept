@@ -53,7 +53,7 @@ handle_magic_syscalls(long nr, long arg0, long arg1,
 {
 	(void) arg5;
 
-	if (nr != SYS_write)
+	if (nr != syscall_nr_construct(SYSCALL_CLASS_UNIX, SYS_write))
 		return -1;
 
 	if (arg0 != SYSCALL_INT_MAGIC_WRITE_FD)

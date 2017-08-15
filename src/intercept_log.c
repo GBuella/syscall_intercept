@@ -576,7 +576,46 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 
 	buf += sprintf(buf, "%s 0x%lx -- ", libpath, syscall_offset);
 
-	if (nr == SYS_read) {
+	static const char *class_str[] = {
+#ifdef SYSCALL_INTERCEPT_USE_XNU_SYSCALL_CLASSES
+		[SYSCALL_CLASS_MACH] = "Mach",
+		[SYSCALL_CLASS_UNIX] = "Unix",
+		[SYSCALL_CLASS_MDEP] = "machine",
+		[SYSCALL_CLASS_DIAG] = "Diagnostics",
+		[SYSCALL_CLASS_IPC] = "Mach-IPC",
+#endif
+	};
+
+	int class = get_syscall_class(nr);
+	nr = get_syscall_number(nr);
+
+	if (class != SYSCALL_CLASS_UNIX) {
+		if (class > 0 &&
+		    class < (int)(sizeof(class_str) / sizeof(class_str[0])) &&
+		    class_str[class] != NULL) {
+			buf = print_syscall(buf, "syscall", 8,
+					F_STR, class_str[class],
+					F_DEC, nr,
+					F_HEX, arg0,
+					F_HEX, arg1,
+					F_HEX, arg2,
+					F_HEX, arg3,
+					F_HEX, arg4,
+					F_HEX, arg5,
+					result_known, result);
+		} else {
+			buf = print_syscall(buf, "syscall", 8,
+					F_DEC, class,
+					F_DEC, nr,
+					F_HEX, arg0,
+					F_HEX, arg1,
+					F_HEX, arg2,
+					F_HEX, arg3,
+					F_HEX, arg4,
+					F_HEX, arg5,
+					result_known, result);
+		}
+	} else if (nr == SYS_read) {
 		ssize_t print_size = (ssize_t)result;
 
 		if (result_known == UNKNOWN || result < 0) {
@@ -1607,7 +1646,13 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 #endif
 	} else {
-		buf = print_syscall(buf, "syscall", 7,
+		buf = print_syscall(buf, "syscall",
+#ifdef SYSCALL_INTERCEPT_USE_XNU_SYSCALL_CLASSES
+				8,
+				F_STR, "Unix",
+#else
+				7,
+#endif
 				F_DEC, nr,
 				F_HEX, arg0,
 				F_HEX, arg1,

@@ -36,9 +36,9 @@ endif()
 
 if(LIB_FILE)
 if(TEST_EXTRA_PRELOAD)
-	set(ENV{LD_PRELOAD} ${TEST_EXTRA_PRELOAD}:${LIB_FILE})
+	set(ENV{${PRELOAD_ENV_VAR_NAME}} ${TEST_EXTRA_PRELOAD}:${LIB_FILE})
 else()
-	set(ENV{LD_PRELOAD} ${LIB_FILE})
+	set(ENV{${PRELOAD_ENV_VAR_NAME}} ${LIB_FILE})
 endif()
 endif()
 
@@ -52,7 +52,7 @@ endif()
 
 execute_process(COMMAND ${TEST_PROG} ${TEST_PROG_ARGS} RESULT_VARIABLE HAD_ERROR)
 
-unset(ENV{LD_PRELOAD})
+unset(ENV{${PRELOAD_ENV_VAR_NAME}})
 
 if(HAD_ERROR)
 	message(FATAL_ERROR "Error: ${HAD_ERROR}")
