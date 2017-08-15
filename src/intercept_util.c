@@ -58,16 +58,16 @@ xmmap_anon(size_t size)
 void *
 xmremap(void *addr, size_t old, size_t new)
 {
-	long new_addr;
+	void *new_addr;
 
 #ifdef SYS_mremap
 	new_addr = syscall_no_intercept(SYS_mremap, addr,
 				old, new, MREMAP_MAYMOVE);
 
-	xabort_on_syserror(new_addr, __func__);
+	xabort_on_syserror((long)new_addr, __func__);
 #else
 	new_addr = xmmap_anon(new);
-	mempy(new_addr, addr, (new > old) ? old : new);
+	memcpy(new_addr, addr, (new > old) ? old : new);
 	xmunmap(addr, old);
 #endif
 

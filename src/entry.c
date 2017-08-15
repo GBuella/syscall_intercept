@@ -82,7 +82,7 @@ cmdline_match(const char *filter)
 	if (flen > clen)
 		return 0;
 
-	if (clen > flen && cmdline[flen - 1] != '/')
+	if (clen > flen && cmdline[clen - flen - 1] != '/')
 		return 0;
 
 	return strcmp(cmdline + clen - flen, filter) == 0;
