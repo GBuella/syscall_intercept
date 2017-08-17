@@ -71,7 +71,8 @@ set(SOURCES_C
 
 set(SOURCES_ASM
 	src/intercept_template.s
-	src/util.s)
+	src/util.s
+	src/intercept_wrapper.s)
 
 
 include_directories(include)
@@ -83,8 +84,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 # can use the internal interface of the libraries (linking
 # with syscall_intercept_base instead of the actual lib ), without
 # the library trying to hotpatch libc every time.
-add_library(syscall_intercept_base_c STATIC ${SOURCES_C})
-add_library(syscall_intercept_base_asm STATIC ${SOURCES_ASM})
+add_library(syscall_intercept_base_c OBJECT ${SOURCES_C})
+add_library(syscall_intercept_base_asm OBJECT ${SOURCES_ASM})
+add_library(syscall_intercept_base_entry OBJECT src/entry.c)
 
 if(HAS_NOUNUSEDARG)
 	target_compile_options(syscall_intercept_base_asm BEFORE
@@ -94,19 +96,23 @@ endif()
 set_property(TARGET syscall_intercept_base_c
 	APPEND PROPERTY COMPILE_FLAGS ${capstone_CFLAGS})
 
-target_link_libraries(syscall_intercept_base_c
-	${CMAKE_DL_LIBS} ${capstone_LIBRARIES})
-
-add_library(syscall_intercept_shared SHARED src/entry.c)
-target_link_libraries(syscall_intercept_shared
-	syscall_intercept_base_c syscall_intercept_base_asm)
-add_library(syscall_intercept_static STATIC src/entry.c)
-target_link_libraries(syscall_intercept_static
-	syscall_intercept_base_c syscall_intercept_base_asm)
+add_library(syscall_intercept_shared SHARED
+	$<TARGET_OBJECTS:syscall_intercept_base_c>
+	$<TARGET_OBJECTS:syscall_intercept_base_asm>
+	$<TARGET_OBJECTS:syscall_intercept_base_entry>)
+add_library(syscall_intercept_static STATIC
+	$<TARGET_OBJECTS:syscall_intercept_base_c>
+	$<TARGET_OBJECTS:syscall_intercept_base_asm>
+	$<TARGET_OBJECTS:syscall_intercept_base_entry>)
 
 set_target_properties(syscall_intercept_shared
 	PROPERTIES VERSION ${SYSCALL_INTERCEPT_VERSION}
 		   SOVERSION ${SYSCALL_INTERCEPT_VERSION_MAJOR})
+
+target_link_libraries(syscall_intercept_shared
+	${CMAKE_DL_LIBS} ${capstone_LIBRARIES})
+target_link_libraries(syscall_intercept_static
+	${CMAKE_DL_LIBS} ${capstone_LIBRARIES})
 
 add_executable(cpp_test src/cpp_compile_test.cc src/cpp_compile_mock.c)
 

@@ -30,9 +30,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-.global xlongjmp;
-.type   xlongjmp, @function
-
 .global has_ymm_registers;
 .type   has_ymm_registers, @function
 
@@ -40,15 +37,6 @@
 .type   syscall_no_intercept, @function
 
 .text
-
-xlongjmp:
-	.cfi_startproc
-	movq        %rdx, %rax
-	movq        %rsi, %rsp
-	jmp         *%rdi
-	.cfi_endproc
-
-.size   xlongjmp, .-xlongjmp
 
 has_ymm_registers:
 	.cfi_startproc
