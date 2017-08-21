@@ -90,6 +90,10 @@ match_with_file_end(const char *expected, int fd)
 	return *c == '\0';
 }
 
+int
+syscall_hook_in_process_allowed(void)
+		__attribute__((visibility("default")));
+
 /*
  * syscall_hook_in_process_allowed - checks if a filter should be applied
  * for processes. If the users requests it (via an environment variable) the
