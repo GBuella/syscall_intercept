@@ -35,6 +35,10 @@
 #		starts a build of syscall_intercept
 #
 
+id
+
+ls -la $WORKDIR
+
 # Build all and run tests
 cd $WORKDIR
 if [ -n "$C_COMPILER" ]; then
