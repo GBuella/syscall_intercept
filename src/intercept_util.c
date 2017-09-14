@@ -594,11 +594,18 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				F_DEC, arg2,
 				result_known, result);
 	} else if (nr == SYS_open) {
-		buf = print_syscall(buf, "open", 3,
-				F_STR, arg0,
-				F_OPEN_FLAGS, arg1,
-				F_OCT_MODE, arg2,
-				result_known, result);
+		if ((arg1 & O_CREAT) != 0) {
+			buf = print_syscall(buf, "open", 3,
+					F_STR, arg0,
+					F_OPEN_FLAGS, arg1,
+					F_OCT_MODE, arg2,
+					result_known, result);
+		} else {
+			buf = print_syscall(buf, "open", 2,
+					F_STR, arg0,
+					F_OPEN_FLAGS, arg1,
+					result_known, result);
+		}
 	} else if (nr == SYS_close) {
 		buf = print_syscall(buf, "close", 1,
 				F_DEC, arg0,
