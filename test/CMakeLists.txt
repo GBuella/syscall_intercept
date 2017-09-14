@@ -337,3 +337,18 @@ add_test(NAME "vfork_logging"
 	${CHECK_LOG_COMMON_ARGS})
 set_tests_properties("vfork_logging"
 	PROPERTIES PASS_REGULAR_EXPRESSION "in_child_created_using_vfork")
+
+
+add_executable(syscall_coverage syscall_coverage.c)
+# Not applying warning flags for syscall_coverage.c, as it contains a lot
+# syscalls intentionally called with invalid arguments, and ignored
+# return values.
+target_link_libraries(syscall_coverage PRIVATE syscall_intercept_shared)
+add_test(NAME "basic_logging"
+	COMMAND ${CMAKE_COMMAND}
+	-DTEST_EXTRA_PRELOAD=${TEST_EXTRA_PRELOAD}
+	-DTEST_PROG=$<TARGET_FILE:syscall_coverage>
+	-DLIB_FILE=
+	-DMATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/libcintercept3.log.match
+	-DTEST_NAME=basic_logging
+	${CHECK_LOG_COMMON_ARGS})
