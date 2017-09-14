@@ -45,6 +45,7 @@ add_executable(asm_pattern asm_pattern.c
 		$<TARGET_OBJECTS:syscall_intercept_base_c>
 		$<TARGET_OBJECTS:syscall_intercept_base_asm>)
 
+target_compile_options(asm_pattern PRIVATE ${COMMON_WARNING_FLAGS})
 target_link_libraries(asm_pattern
 	PRIVATE ${CMAKE_DL_LIBS} ${capstone_LDFLAGS})
 
@@ -117,6 +118,7 @@ set(CHECK_LOG_COMMON_ARGS
 	-P ${CMAKE_CURRENT_SOURCE_DIR}/check_log.cmake)
 
 add_executable(fork_logging fork_logging.c)
+target_compile_options(fork_logging PRIVATE ${COMMON_WARNING_FLAGS})
 add_test(NAME "fork_logging"
 	COMMAND ${CMAKE_COMMAND}
 	-DTEST_EXTRA_PRELOAD=${TEST_EXTRA_PRELOAD}
@@ -130,11 +132,14 @@ add_test(NAME "fork_logging"
 	${CHECK_LOG_COMMON_ARGS})
 
 add_library(hook_test_preload_o OBJECT hook_test_preload.c)
+target_compile_options(hook_test_preload_o PRIVATE ${COMMON_WARNING_FLAGS})
 
 add_executable(hook_test hook_test.c)
+target_compile_options(hook_test PRIVATE ${COMMON_WARNING_FLAGS})
 
 add_library(hook_test_preload_with_shared SHARED
 	$<TARGET_OBJECTS:hook_test_preload_o>)
+target_compile_options(hook_test_preload_with_shared PRIVATE ${COMMON_WARNING_FLAGS})
 target_link_libraries(hook_test_preload_with_shared PRIVATE syscall_intercept_shared)
 add_test(NAME "hook_with_shared"
 	COMMAND ${CMAKE_COMMAND}
@@ -148,6 +153,7 @@ add_test(NAME "hook_with_shared"
 
 add_library(hook_test_preload_with_static SHARED
 	$<TARGET_OBJECTS:hook_test_preload_o>)
+target_compile_options(hook_test_preload_with_static PRIVATE ${COMMON_WARNING_FLAGS})
 target_link_libraries(hook_test_preload_with_static PRIVATE syscall_intercept_static)
 add_test(NAME "hook_with_static"
 	COMMAND ${CMAKE_COMMAND}
@@ -161,6 +167,7 @@ add_test(NAME "hook_with_static"
 
 
 add_library(hook_test_clone_preload SHARED hook_test_clone_preload.c)
+target_compile_options(hook_test_clone_preload PRIVATE ${COMMON_WARNING_FLAGS})
 target_link_libraries(hook_test_clone_preload PRIVATE syscall_intercept_shared)
 add_test(NAME "hook_clone"
 	COMMAND ${CMAKE_COMMAND}
@@ -175,6 +182,7 @@ add_test(NAME "hook_clone"
 	${CHECK_LOG_COMMON_ARGS})
 
 add_executable(filter_test filter_test.c)
+target_compile_options(filter_test PRIVATE ${COMMON_WARNING_FLAGS})
 target_link_libraries(filter_test PRIVATE syscall_intercept_shared)
 
 add_test(NAME "filter_none"
@@ -224,8 +232,10 @@ set_tests_properties("filter_negative_substring1"
 	PROPERTIES PASS_REGULAR_EXPRESSION "disallowed")
 
 add_executable(test_clone_thread test_clone_thread.c)
+target_compile_options(test_clone_thread PRIVATE ${COMMON_WARNING_FLAGS})
 target_link_libraries(test_clone_thread PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 add_library(test_clone_thread_preload SHARED test_clone_thread_preload.c)
+target_compile_options(test_clone_thread_preload PRIVATE ${COMMON_WARNING_FLAGS})
 target_link_libraries(test_clone_thread_preload PRIVATE syscall_intercept_shared)
 add_test(NAME "clone_thread"
 	COMMAND ${CMAKE_COMMAND}
@@ -237,10 +247,13 @@ add_test(NAME "clone_thread"
 set_tests_properties("clone_thread"
 	PROPERTIES PASS_REGULAR_EXPRESSION "clone_hook_child called")
 
+if(HAS_ARG_PIE AND (HAS_ARG_NOPIE OR HAS_ARG_NO_PIE))
+
 add_library(intercept_sys_write SHARED intercept_sys_write.c)
 target_link_libraries(intercept_sys_write PRIVATE syscall_intercept_shared)
 
 add_executable(executable_with_syscall_pie executable_with_syscall.s)
+target_compile_options(executable_with_syscall_pie PRIVATE ${COMMON_WARNING_FLAGS})
 if(HAS_NOUNUSEDARG)
 	target_compile_options(executable_with_syscall_pie BEFORE
 		PRIVATE "-Wno-unused-command-line-argument")
@@ -253,6 +266,7 @@ if(HAS_ARG_PIE)
 endif()
 
 add_executable(executable_with_syscall_no_pie executable_with_syscall.s)
+target_compile_options(executable_with_syscall_no_pie PRIVATE ${COMMON_WARNING_FLAGS})
 if(HAS_NOUNUSEDARG)
 	target_compile_options(executable_with_syscall_no_pie BEFORE
 		PRIVATE "-Wno-unused-command-line-argument")
@@ -309,7 +323,10 @@ add_test(NAME "prog_no_pie_intercept_all"
 set_tests_properties("prog_no_pie_intercept_all"
 	PROPERTIES PASS_REGULAR_EXPRESSION "intercepted_call")
 
+endif(HAS_ARG_PIE AND (HAS_ARG_NOPIE OR HAS_ARG_NO_PIE))
+
 add_executable(vfork_logging vfork_logging.c)
+target_compile_options(vfork_logging PRIVATE ${COMMON_WARNING_FLAGS})
 add_test(NAME "vfork_logging"
 	COMMAND ${CMAKE_COMMAND}
 	-DTEST_EXTRA_PRELOAD=${TEST_EXTRA_PRELOAD}

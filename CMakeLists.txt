@@ -87,6 +87,9 @@ add_library(syscall_intercept_base_c OBJECT ${SOURCES_C})
 add_library(syscall_intercept_base_asm OBJECT ${SOURCES_ASM})
 add_library(syscall_intercept_base_clf OBJECT src/cmdline_filter.c)
 
+target_compile_options(syscall_intercept_base_c PRIVATE ${COMMON_WARNING_FLAGS})
+target_compile_options(syscall_intercept_base_clf PRIVATE ${COMMON_WARNING_FLAGS})
+
 if(HAS_NOUNUSEDARG)
 	target_compile_options(syscall_intercept_base_asm BEFORE
 		PRIVATE "-Wno-unused-command-line-argument")
@@ -140,6 +143,7 @@ set_target_properties(syscall_intercept_shared
 		   SOVERSION ${SYSCALL_INTERCEPT_VERSION_MAJOR})
 
 add_executable(cpp_test src/cpp_compile_test.cc src/cpp_compile_mock.c)
+target_compile_options(cpp_test PRIVATE ${COMMON_WARNING_FLAGS})
 
 set_target_properties(syscall_intercept_shared syscall_intercept_static
 	PROPERTIES
@@ -171,6 +175,7 @@ if(PERFORM_STYLE_CHECKS)
 	endif()
 
 	add_executable(check_license_executable utils/check_license/check-license.c)
+	target_compile_options(check_license_executable PRIVATE ${COMMON_WARNING_FLAGS})
 
 	add_custom_target(check-license
 		COMMAND
