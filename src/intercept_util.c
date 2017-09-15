@@ -136,6 +136,188 @@ intercept_setup_log(const char *path_base, const char *trunc)
 }
 
 /*
+ * print_cstr - similar to strcpy, but returns a pointer to the terminating
+ * null character in the destination string, instead of a count. This is done
+ * without calling into libc, which is part of an effort to eliminate as many
+ * libc calls in syscall_intercept as is possible in practice.
+ *
+ * Note: sprintf can result in a format string warning when given a variable
+ * as second argument. This is sort of an fputs for strings, an sputs.
+ */
+static char *
+print_cstr(char *dst, const char *src)
+{
+	while (*src != '\0')
+		*dst++ = *src++;
+
+	*dst = '\0';
+
+	return dst;
+}
+
+/*
+ * print_number - prints a number in the given base
+ * A minimum number of digits can requested in the width argument.
+ * Returns a pointer to end of the destination string.
+ */
+static char *
+print_number(char *dst, unsigned long n, int base, unsigned width)
+{
+	static const char digit_chars[] = "0123456789abcdef";
+	char digits[0x20];
+
+	assert(base > 0 && (size_t)base < sizeof(digit_chars));
+
+	digits[sizeof(digits) - 1] = '\0';
+	char *c = digits + sizeof(digits) - 1;
+	if (width >= sizeof(digits) - 1)
+		width = sizeof(digits) - 2;
+
+	do {
+		c--;
+		*c = digit_chars[n % base];
+		n /= base;
+		if (width > 0)
+			width--;
+	} while (n > 0 || width > 0);
+
+	while (*c != '\0')
+		*dst++ = *c++;
+
+	return dst;
+}
+
+static char *
+print_pointer(char *c, long pointer)
+{
+	if (pointer == 0)
+		return print_cstr(c, "(null)");
+
+	*c++ = '0';
+	*c++ = 'x';
+	return print_number(c, (unsigned long)pointer, 16, 16);
+}
+
+static char *
+print_signed_dec(char *dst, long n)
+{
+	unsigned long abs_n;
+
+	if (n >= 0) {
+		abs_n = (unsigned long)n;
+	} else {
+		*dst++ = '-';
+		abs_n = -((unsigned long)n);
+	}
+
+	return print_number(dst, abs_n, 10, 1);
+}
+
+/*
+ * print_fd - prints an fd number
+ * An fd is just printed as a decimal number.
+ *
+ * Might do something extra with invalid fds in the future - with numbers
+ * that don't fit in an int, or with negative numbers.
+ */
+static char *
+print_fd(char *dst, long n)
+{
+	return print_signed_dec(dst, n);
+}
+
+/*
+ * print_atfd - like print_fd, except it recognizes AT_FDCWD
+ */
+static char *
+print_atfd(char *dst, long n)
+{
+	if (n == AT_FDCWD)
+		return print_cstr(dst, "AT_FDCWD");
+	else
+		return print_fd(dst, n);
+}
+
+/*
+ * print_flag - appends a vertical bar separated list of strings with a
+ * new one, returns a pointer to end of the resulting string.
+ * The buffer_start argument is expected to point to the beginning of
+ * the list (where no separator is needed), and the c argument is treated
+ * as current iterator in the list.
+ */
+static char *
+print_flag(char *buffer_start, char *c, const char *flag_name)
+{
+	if (c != buffer_start)
+		c = print_cstr(c, " | ");
+
+	return c = print_cstr(c, flag_name);
+}
+
+struct flag_desc {
+	long flag;
+	const char *printable_name;
+};
+
+/*
+ * print_flag_set
+ *
+ *
+ */
+static char *
+print_flag_set(char *buffer_start, char *c, long flags,
+		const struct flag_desc *desc)
+{
+	while (flags != 0 && desc->flag != 0) {
+		if ((flags & desc->flag) != 0) {
+			c = print_flag(buffer_start, c, desc->printable_name);
+			flags &= ~desc->flag;
+		}
+		desc++;
+	}
+
+	if (flags != 0) {
+		if (c != buffer_start)
+			c = print_cstr(c, " | ");
+		c = print_cstr(c, "0x");
+		c = print_number(c, (unsigned long)flags, 16, 1);
+	}
+
+	if (c == buffer_start)
+		c = print_cstr(c, "0");
+
+	return c;
+}
+
+#define FLAG_ENTRY(flag_macro) \
+	{ .flag = flag_macro, .printable_name = #flag_macro }
+
+static const struct flag_desc open_flags[] = {
+#ifdef O_EXEC
+	FLAG_ENTRY(O_EXEC),
+#endif
+#ifdef O_SEARCH
+	FLAG_ENTRY(O_SEARCH),
+#endif
+	FLAG_ENTRY(O_APPEND),
+	FLAG_ENTRY(O_CLOEXEC),
+	FLAG_ENTRY(O_CREAT),
+	FLAG_ENTRY(O_DIRECTORY),
+	FLAG_ENTRY(O_DSYNC),
+	FLAG_ENTRY(O_EXCL),
+	FLAG_ENTRY(O_NOCTTY),
+	FLAG_ENTRY(O_NOFOLLOW),
+	FLAG_ENTRY(O_NONBLOCK),
+	FLAG_ENTRY(O_RSYNC),
+	FLAG_ENTRY(O_SYNC),
+	FLAG_ENTRY(O_TRUNC),
+#ifdef O_TTY_INIT
+	FLAG_ENTRY(O_TTY_INIT),
+#endif
+	{ .flag = 0, }
+};
+
+/*
  * print_open_flags
  * Parses and prints open syscall specific flags to the buffer passed as the
  * first argument.
@@ -147,90 +329,19 @@ print_open_flags(char *buffer, int flags)
 {
 	char *c = buffer;
 
-	*c = 0;
-
 	if (flags == 0)
-		return c + sprintf(c, "O_RDONLY");
+		return print_cstr(c, "O_RDONLY");
 
-#ifdef O_EXEC
-	if ((flags & O_EXEC) == O_EXEC)
-		c += sprintf(c, "O_EXEC | ");
-#endif
 	if ((flags & O_RDWR) == O_RDWR)
-		c += sprintf(c, "O_RDWR | ");
+		c = print_flag(buffer, c, "O_RDWR");
 	if ((flags & O_WRONLY) == O_WRONLY)
-		c += sprintf(c, "O_WRONLY | ");
+		c = print_flag(buffer, c, "O_WRONLY");
 	if ((flags & (O_WRONLY|O_RDWR)) == 0)
-		c += sprintf(c, "O_RDONLY | ");
-#ifdef O_SEARCH
-	if ((flags & O_SEARCH) = O_SEARCH)
-		c += sprintf(c, "O_SEARCH | ");
-#endif
-	if ((flags & O_APPEND) == O_APPEND)
-		c += sprintf(c, "O_APPEND | ");
-	if ((flags & O_CLOEXEC) == O_CLOEXEC)
-		c += sprintf(c, "O_CLOEXEC | ");
-	if ((flags & O_CREAT) == O_CREAT)
-		c += sprintf(c, "O_CREAT | ");
-	if ((flags & O_DIRECTORY) == O_DIRECTORY)
-		c += sprintf(c, "O_DIRECTORY | ");
-	if ((flags & O_DSYNC) == O_DSYNC)
-		c += sprintf(c, "O_DSYNC | ");
-	if ((flags & O_EXCL) == O_EXCL)
-		c += sprintf(c, "O_EXCL | ");
-	if ((flags & O_NOCTTY) == O_NOCTTY)
-		c += sprintf(c, "O_NOCTTY | ");
-	if ((flags & O_NOFOLLOW) == O_NOFOLLOW)
-		c += sprintf(c, "O_NOFOLLOW | ");
-	if ((flags & O_NONBLOCK) == O_NONBLOCK)
-		c += sprintf(c, "O_NONBLOCK | ");
-	if ((flags & O_RSYNC) == O_RSYNC)
-		c += sprintf(c, "O_RSYNC | ");
-	if ((flags & O_SYNC) == O_SYNC)
-		c += sprintf(c, "O_SYNC | ");
-	if ((flags & O_TRUNC) == O_TRUNC)
-		c += sprintf(c, "O_TRUNC | ");
-#ifdef O_TTY_INIT
-	if ((flags & O_TTY_INIT) == O_TTY_INIT)
-		c += sprintf(c, "O_TTY_INIT | ");
-#endif
+		c = print_flag(buffer, c, "O_RDONLY");
 
-#ifdef O_EXEC
-	flags &= ~O_EXEC;
-#endif
-#ifdef O_TTY_INIT
-	flags &= ~O_TTY_INIT;
-#endif
-#ifdef O_SEARCH
-	flags &= ~O_SEARCH;
-#endif
+	flags &= ~(O_RDONLY | O_WRONLY | O_RDWR);
 
-	flags &= ~(O_RDONLY | O_RDWR | O_WRONLY | O_APPEND |
-	    O_CLOEXEC | O_CREAT | O_DIRECTORY | O_DSYNC | O_EXCL |
-	    O_NOCTTY | O_NOFOLLOW | O_NONBLOCK | O_RSYNC | O_SYNC |
-	    O_TRUNC);
-
-	if (flags != 0) {
-		/*
-		 * Some values in the flag were not recognized, just print the
-		 * raw number.
-		 * e.g.: "O_RDONLY | O_NONBLOCK | 0x9876"
-		 */
-		c += sprintf(c, "0x%dx", flags);
-	} else if (c != buffer) {
-		/*
-		 * All bits in flag were parsed, and the pointer c does not
-		 * point to the start of the buffer, therefore some text was
-		 * written already, with a separator on the end. Remove the
-		 * trailing three characters: " | "
-		 *
-		 * e.g.: "O_RDONLY | O_NONBLOCK | " -> "O_RDONLY | O_NONBLOCK"
-		 */
-		c -= 3;
-		*c = 0;
-	}
-
-	return c;
+	return print_flag_set(buffer, c, flags, open_flags);
 }
 
 /*
@@ -292,84 +403,43 @@ print_fcntl_cmd(char *buffer, long cmd)
 	return buffer + sprintf(buffer, "%ld (%s)", cmd, fcntl_name(cmd));
 }
 
-/*
- * print_clone_flags
- * Prints SYS_clone specific flags into the buffer provided. Does not return
- * the to pointer advanced while printing.
- */
-static char *
-print_clone_flags(char buffer[static 0x100], long flags)
-{
-	char *c = buffer;
-
-	*c = '\0';
-
-	if ((flags & CLONE_CHILD_CLEARTID) == CLONE_CHILD_CLEARTID)
-		c += sprintf(c, "CLONE_CHILD_CLEARTID | ");
-	if ((flags & CLONE_CHILD_SETTID) == CLONE_CHILD_SETTID)
-		c += sprintf(c, "CLONE_CHILD_SETTID | ");
-	if ((flags & CLONE_FILES) == CLONE_FILES)
-		c += sprintf(c, "CLONE_FILES | ");
-	if ((flags & CLONE_FS) == CLONE_FS)
-		c += sprintf(c, "CLONE_FS | ");
-	if ((flags & CLONE_IO) == CLONE_IO)
-		c += sprintf(c, "CLONE_IO | ");
+static const struct flag_desc clone_flags[] = {
+	FLAG_ENTRY(CLONE_CHILD_CLEARTID),
+	FLAG_ENTRY(CLONE_CHILD_SETTID),
+	FLAG_ENTRY(CLONE_FILES),
+	FLAG_ENTRY(CLONE_FS),
+	FLAG_ENTRY(CLONE_IO),
 #ifdef CLONE_NEWCGROUP
-	if ((flags & CLONE_NEWCGROUP) == CLONE_NEWCGROUP)
-		c += sprintf(c, "CLONE_NEWCGROUP | ");
+	FLAG_ENTRY(CLONE_NEWCGROUP),
 #endif
 #ifdef CLONE_NEWIPC
-	if ((flags & CLONE_NEWIPC) == CLONE_NEWIPC)
-		c += sprintf(c, "CLONE_NEWIPC | ");
+	FLAG_ENTRY(CLONE_NEWIPC),
 #endif
 #ifdef CLONE_NEWNET
-	if ((flags & CLONE_NEWNET) == CLONE_NEWNET)
-		c += sprintf(c, "CLONE_NEWNET | ");
+	FLAG_ENTRY(CLONE_NEWNET),
 #endif
 #ifdef CLONE_NEWNS
-	if ((flags & CLONE_NEWNS) == CLONE_NEWNS)
-		c += sprintf(c, "CLONE_NEWNS | ");
+	FLAG_ENTRY(CLONE_NEWNS),
 #endif
 #ifdef CLONE_NEWPID
-	if ((flags & CLONE_NEWPID) == CLONE_NEWPID)
-		c += sprintf(c, "CLONE_NEWPID | ");
+	FLAG_ENTRY(CLONE_NEWPID),
 #endif
-	if ((flags & CLONE_NEWUSER) == CLONE_NEWUSER)
-		c += sprintf(c, "CLONE_NEWUSER | ");
+	FLAG_ENTRY(CLONE_NEWUSER),
 #ifdef CLONE_NEWUTS
-	if ((flags & CLONE_NEWUTS) == CLONE_NEWUTS)
-		c += sprintf(c, "CLONE_NEWUTS | ");
+	FLAG_ENTRY(CLONE_NEWUTS),
 #endif
-	if ((flags & CLONE_PARENT) == CLONE_PARENT)
-		c += sprintf(c, "CLONE_PARENT | ");
-	if ((flags & CLONE_PARENT_SETTID) == CLONE_PARENT_SETTID)
-		c += sprintf(c, "CLONE_PARENT_SETTID | ");
-	if ((flags & CLONE_PTRACE) == CLONE_PTRACE)
-		c += sprintf(c, "CLONE_PTRACE | ");
-	if ((flags & CLONE_SETTLS) == CLONE_SETTLS)
-		c += sprintf(c, "CLONE_SETTLS | ");
-	if ((flags & CLONE_SIGHAND) == CLONE_SIGHAND)
-		c += sprintf(c, "CLONE_SIGHAND | ");
-	if ((flags & CLONE_SYSVSEM) == CLONE_SYSVSEM)
-		c += sprintf(c, "CLONE_SYSVSEM | ");
-	if ((flags & CLONE_THREAD) == CLONE_THREAD)
-		c += sprintf(c, "CLONE_THREAD | ");
-	if ((flags & CLONE_UNTRACED) == CLONE_UNTRACED)
-		c += sprintf(c, "CLONE_UNTRACED | ");
-	if ((flags & CLONE_VFORK) == CLONE_VFORK)
-		c += sprintf(c, "CLONE_VFORK | ");
-	if ((flags & CLONE_VM) == CLONE_VM)
-		c += sprintf(c, "CLONE_VM | ");
-
-	if (c != buffer) {
-		c -= 3;
-		*c = '\0';
-	} else {
-		c += sprintf(buffer, "%ld", flags);
-	}
-
-	return c;
-}
+	FLAG_ENTRY(CLONE_PARENT),
+	FLAG_ENTRY(CLONE_PARENT_SETTID),
+	FLAG_ENTRY(CLONE_PTRACE),
+	FLAG_ENTRY(CLONE_SETTLS),
+	FLAG_ENTRY(CLONE_SIGHAND),
+	FLAG_ENTRY(CLONE_SYSVSEM),
+	FLAG_ENTRY(CLONE_THREAD),
+	FLAG_ENTRY(CLONE_UNTRACED),
+	FLAG_ENTRY(CLONE_VFORK),
+	FLAG_ENTRY(CLONE_VM),
+	{ .flag = 0, }
+};
 
 /*
  * The formats of syscall arguments, as they should appear in logs.
@@ -399,6 +469,15 @@ print_clone_flags(char buffer[static 0x100], long flags)
 /* 1st argument of clone */
 #define F_CLONE_FLAGS 8
 
+/* fd number argument - not the first argument of *at syscalls */
+#define F_FD 9
+
+/* fd number argument - the first argument of *at syscalls */
+#define F_ATFD 10
+
+/* general pointer argument */
+#define F_POINTER 11
+
 /*
  * xprint_escape
  * Prints a user provided buffer (in src) as printable characters (to dst).
@@ -413,12 +492,10 @@ static char *
 xprint_escape(char *restrict dst, const char *restrict src,
 			size_t dst_size, bool zero_term, size_t src_size)
 {
-	static const char xdigit[16] = "0123456789abcdef";
-
 	char *dst_end = dst + dst_size - 5;
 
 	if (src == NULL)
-		return dst + sprintf(dst, "(null)");
+		return print_cstr(dst, "(null)");
 
 	*dst++ = '"';
 	while (dst < dst_end && (zero_term || src_size > 0)) {
@@ -453,8 +530,8 @@ xprint_escape(char *restrict dst, const char *restrict src,
 				*dst++ = '0';
 			} else {
 				*dst++ = 'x';
-				*dst++ = xdigit[(unsigned char)(*src) / 16];
-				*dst++ = xdigit[(unsigned char)(*src) % 16];
+				dst = print_number(dst,
+				    (unsigned char)*src, 16, 2);
 			}
 
 		}
@@ -466,7 +543,7 @@ xprint_escape(char *restrict dst, const char *restrict src,
 	}
 
 	if ((src_size > 0 && !zero_term) || (zero_term && *src != 0))
-		dst += sprintf(dst, "...");
+		dst = print_cstr(dst, "...");
 
 	*dst++ = '"';
 	*dst = 0;
@@ -488,24 +565,25 @@ print_syscall(char *b, const char *name, unsigned args, ...)
 	bool first = true;
 	va_list ap;
 
-	b += sprintf(b, "%s(", name);
+	b = print_cstr(b, name);
+	b = print_cstr(b, "(");
 
 	va_start(ap, args);
 
 	while (args > 0) {
 		int format = va_arg(ap, int);
 
-		if (!first) {
-			*b++ = ',';
-			*b++ = ' ';
-		}
+		if (!first)
+			b = print_cstr(b, ", ");
 
 		if (format == F_DEC) {
-			b += sprintf(b, "%ld", va_arg(ap, long));
+			b = print_signed_dec(b, va_arg(ap, long));
 		} else if (format == F_OCT_MODE) {
-			b += sprintf(b, "0%lo", va_arg(ap, unsigned long));
+			b = print_cstr(b, "0");
+			b = print_number(b, va_arg(ap, unsigned long), 8, 1);
 		} else if (format == F_HEX) {
-			b += sprintf(b, "0x%lx", va_arg(ap, unsigned long));
+			b = print_cstr(b, "0x");
+			b = print_number(b, va_arg(ap, unsigned long), 16, 1);
 		} else if (format == F_STR) {
 			b = xprint_escape(b, va_arg(ap, char *), 0x80, true, 0);
 		} else if (format == F_BUF) {
@@ -517,17 +595,25 @@ print_syscall(char *b, const char *name, unsigned args, ...)
 		} else if (format == F_FCNTL_CMD) {
 			b = print_fcntl_cmd(b, va_arg(ap, long));
 		} else if (format == F_CLONE_FLAGS) {
-			b = print_clone_flags(b, va_arg(ap, long));
+			b = print_flag_set(b, b, va_arg(ap, int), clone_flags);
+		} else if (format == F_FD) {
+			b = print_fd(b, va_arg(ap, long));
+		} else if (format == F_ATFD) {
+			b = print_atfd(b, va_arg(ap, long));
+		} else if (format == F_POINTER) {
+			b = print_pointer(b, va_arg(ap, long));
 		}
 
 		--args;
 		first = false;
 	}
 
-	if (va_arg(ap, enum intercept_log_result) == KNOWN)
-		b += sprintf(b, ") = %ld", va_arg(ap, long));
-	else
-		b += sprintf(b, ") = ?");
+	b = print_cstr(b, ") = ");
+	if (va_arg(ap, enum intercept_log_result) == KNOWN) {
+		b = print_signed_dec(b, va_arg(ap, long));
+	} else {
+		b = print_cstr(b, "?");
+	}
 
 	va_end(ap);
 
@@ -583,13 +669,13 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 		}
 
 		buf = print_syscall(buf, "read", 3,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_BUF, print_size, arg1,
 				F_DEC, arg2,
 				result_known, result);
 	} else if (nr == SYS_write) {
 		buf = print_syscall(buf, "write", 3,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_BUF, arg2, arg1,
 				F_DEC, arg2,
 				result_known, result);
@@ -608,7 +694,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 		}
 	} else if (nr == SYS_close) {
 		buf = print_syscall(buf, "close", 1,
-				F_DEC, arg0,
+				F_FD, arg0,
 				result_known, result);
 	} else if (nr == SYS_stat) {
 		buf = print_syscall(buf, "stat", 2,
@@ -617,7 +703,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 	} else if (nr == SYS_fstat) {
 		buf = print_syscall(buf, "fstat", 2,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_HEX, arg1,
 				result_known, result);
 	} else if (nr == SYS_lstat) {
@@ -627,28 +713,28 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 	} else if (nr == SYS_lseek) {
 		buf = print_syscall(buf, "lseek", 3,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_DEC, arg1,
 				F_DEC, arg2,
 				result_known, result);
 	} else if (nr == SYS_mmap) {
 		buf = print_syscall(buf, "mmap", 6,
-				F_HEX, arg0,
+				F_POINTER, arg0,
 				F_DEC, arg1,
 				F_DEC, arg2,
 				F_DEC, arg3,
-				F_DEC, arg4,
+				F_FD, arg4,
 				F_HEX, arg5,
 				result_known, result);
 	} else if (nr == SYS_mprotect) {
 		buf = print_syscall(buf, "mprotect", 3,
-				F_HEX, arg0,
+				F_POINTER, arg0,
 				F_DEC, arg1,
 				F_DEC, arg2,
 				result_known, result);
 	} else if (nr == SYS_munmap) {
 		buf = print_syscall(buf, "munmap", 2,
-				F_HEX, arg0,
+				F_POINTER, arg0,
 				F_DEC, arg1,
 				result_known, result);
 	} else if (nr == SYS_brk) {
@@ -657,33 +743,33 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 	} else if (nr == SYS_ioctl) {
 		buf = print_syscall(buf, "ioctl", 3,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_DEC, arg1,
 				F_DEC, arg2,
 				result_known, result);
 	} else if (nr == SYS_pread64) {
 		buf = print_syscall(buf, "pread64", 4,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_BUF, arg2, arg1,
 				F_DEC, arg2,
 				F_DEC, arg3,
 				result_known, result);
 	} else if (nr == SYS_pwrite64) {
 		buf = print_syscall(buf, "pwrite64", 4,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_BUF, arg2, arg1,
 				F_DEC, arg2,
 				F_DEC, arg3,
 				result_known, result);
 	} else if (nr == SYS_readv) {
 		buf = print_syscall(buf, "readv", 3,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_HEX, arg1,
 				F_DEC, arg2,
 				result_known, result);
 	} else if (nr == SYS_writev) {
 		buf = print_syscall(buf, "writev", 3,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_HEX, arg1,
 				F_DEC, arg2,
 				result_known, result);
@@ -694,7 +780,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 	} else if (nr == SYS_mremap) {
 		buf = print_syscall(buf, "mremap", 5,
-				F_HEX, arg0,
+				F_POINTER, arg0,
 				F_DEC, arg1,
 				F_DEC, arg2,
 				F_DEC, arg3,
@@ -702,37 +788,37 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 	} else if (nr == SYS_msync) {
 		buf = print_syscall(buf, "msync", 3,
-				F_HEX, arg0,
+				F_POINTER, arg0,
 				F_DEC, arg1,
 				F_DEC, arg2,
 				result_known, result);
 	} else if (nr == SYS_dup) {
 		buf = print_syscall(buf, "dup", 1,
-				F_DEC, arg0,
+				F_FD, arg0,
 				result_known, result);
 	} else if (nr == SYS_dup2) {
 		buf = print_syscall(buf, "dup2", 2,
-				F_DEC, arg0,
-				F_DEC, arg1,
+				F_FD, arg0,
+				F_FD, arg1,
 				result_known, result);
 	} else if (nr == SYS_fcntl) {
 		buf = print_syscall(buf, "fcntl", 3,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_FCNTL_CMD, arg1,
 				F_HEX, arg2,
 				result_known, result);
 	} else if (nr == SYS_flock) {
 		buf = print_syscall(buf, "flock", 2,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_DEC, arg1,
 				result_known, result);
 	} else if (nr == SYS_fsync) {
 		buf = print_syscall(buf, "fsync", 1,
-				F_DEC, arg0,
+				F_FD, arg0,
 				result_known, result);
 	} else if (nr == SYS_fdatasync) {
 		buf = print_syscall(buf, "fdatasync", 1,
-				F_DEC, arg0,
+				F_FD, arg0,
 				result_known, result);
 	} else if (nr == SYS_truncate) {
 		buf = print_syscall(buf, "truncate", 2,
@@ -741,12 +827,12 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 	} else if (nr == SYS_ftruncate) {
 		buf = print_syscall(buf, "ftruncate", 2,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_DEC, arg1,
 				result_known, result);
 	} else if (nr == SYS_getdents) {
 		buf = print_syscall(buf, "getdents", 3,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_HEX, arg1,
 				F_DEC, arg2,
 				result_known, result);
@@ -762,7 +848,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 	} else if (nr == SYS_fchdir) {
 		buf = print_syscall(buf, "fchdir", 1,
-				F_DEC, arg0,
+				F_FD, arg0,
 				result_known, result);
 	} else if (nr == SYS_rename) {
 		buf = print_syscall(buf, "rename", 2,
@@ -815,7 +901,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 	} else if (nr == SYS_fchmod) {
 		buf = print_syscall(buf, "fchmod", 2,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_OCT_MODE, arg1,
 				result_known, result);
 	} else if (nr == SYS_chown) {
@@ -826,7 +912,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 	} else if (nr == SYS_fchown) {
 		buf = print_syscall(buf, "fchown", 3,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_DEC, arg1,
 				F_DEC, arg2,
 				result_known, result);
@@ -853,7 +939,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 	} else if (nr == SYS_fstatfs) {
 		buf = print_syscall(buf, "fstatfs", 2,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_HEX, arg1,
 				result_known, result);
 	} else if (nr == SYS_chroot) {
@@ -862,46 +948,46 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 	} else if (nr == SYS_readahead) {
 		buf = print_syscall(buf, "readahead", 3,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_DEC, arg1,
 				F_DEC, arg2,
 				result_known, result);
 	} else if (nr == SYS_getdents64) {
 		buf = print_syscall(buf, "getdents64", 3,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_HEX, arg1,
 				F_DEC, arg2,
 				result_known, result);
 	} else if (nr == SYS_fadvise64) {
 		buf = print_syscall(buf, "fadvise64", 4,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_DEC, arg1,
 				F_DEC, arg2,
 				F_DEC, arg3,
 				result_known, result);
 	} else if (nr == SYS_openat) {
 		buf = print_syscall(buf, "openat", 4,
-				F_DEC, arg0,
+				F_ATFD, arg0,
 				F_STR, arg1,
 				F_OPEN_FLAGS, arg2,
 				F_OCT_MODE, arg3,
 				result_known, result);
 	} else if (nr == SYS_mkdirat) {
 		buf = print_syscall(buf, "mkdirat", 4,
-				F_DEC, arg0,
+				F_ATFD, arg0,
 				F_STR, arg1,
 				F_OPEN_FLAGS, arg2,
 				result_known, result);
 	} else if (nr == SYS_mknodat) {
 		buf = print_syscall(buf, "mknodat", 4,
-				F_DEC, arg0,
+				F_ATFD, arg0,
 				F_STR, arg1,
 				F_OCT_MODE, arg2,
 				F_DEC, arg3,
 				result_known, result);
 	} else if (nr == SYS_fchownat) {
 		buf = print_syscall(buf, "fchownat", 5,
-				F_DEC, arg0,
+				F_ATFD, arg0,
 				F_STR, arg1,
 				F_DEC, arg2,
 				F_DEC, arg3,
@@ -909,122 +995,122 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 	} else if (nr == SYS_futimesat) {
 		buf = print_syscall(buf, "futimesat", 3,
-				F_DEC, arg0,
+				F_ATFD, arg0,
 				F_STR, arg1,
 				F_HEX, arg2,
 				result_known, result);
 	} else if (nr == SYS_newfstatat) {
 		buf = print_syscall(buf, "newfstatat", 4,
-				F_DEC, arg0,
+				F_ATFD, arg0,
 				F_STR, arg1,
 				F_HEX, arg2,
 				F_DEC, arg3,
 				result_known, result);
 	} else if (nr == SYS_unlinkat) {
 		buf = print_syscall(buf, "unlinkat", 3,
-				F_DEC, arg0,
+				F_ATFD, arg0,
 				F_STR, arg1,
 				F_DEC, arg2,
 				result_known, result);
 	} else if (nr == SYS_renameat) {
 		buf = print_syscall(buf, "renameat", 4,
-				F_DEC, arg0,
+				F_ATFD, arg0,
 				F_STR, arg1,
-				F_DEC, arg2,
+				F_ATFD, arg2,
 				F_STR, arg3,
 				result_known, result);
 	} else if (nr == SYS_linkat) {
 		buf = print_syscall(buf, "linkat", 5,
-				F_DEC, arg0,
+				F_ATFD, arg0,
 				F_STR, arg1,
-				F_DEC, arg2,
+				F_ATFD, arg2,
 				F_STR, arg3,
 				F_DEC, arg4,
 				result_known, result);
 	} else if (nr == SYS_symlinkat) {
 		buf = print_syscall(buf, "symlinkat", 3,
 				F_STR, arg0,
-				F_DEC, arg1,
+				F_ATFD, arg1,
 				F_STR, arg2,
 				result_known, result);
 	} else if (nr == SYS_readlinkat) {
 		buf = print_syscall(buf, "readlinkat", 4,
-				F_DEC, arg0,
+				F_ATFD, arg0,
 				F_STR, arg1,
 				F_STR, arg2,
 				F_DEC, arg3,
 				result_known, result);
 	} else if (nr == SYS_fchmodat) {
 		buf = print_syscall(buf, "fchmodat", 3,
-				F_DEC, arg0,
+				F_ATFD, arg0,
 				F_STR, arg1,
 				F_OCT_MODE, arg2,
 				result_known, result);
 	} else if (nr == SYS_faccessat) {
 		buf = print_syscall(buf, "faccessat", 3,
-				F_DEC, arg0,
+				F_ATFD, arg0,
 				F_STR, arg1,
 				F_OCT_MODE, arg2,
 				result_known, result);
 	} else if (nr == SYS_splice) {
 		buf = print_syscall(buf, "splice", 6,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_HEX, arg1,
-				F_DEC, arg2,
+				F_FD, arg2,
 				F_HEX, arg3,
 				F_DEC, arg4,
 				F_DEC, arg5,
 				result_known, result);
 	} else if (nr == SYS_tee) {
 		buf = print_syscall(buf, "tee", 4,
-				F_DEC, arg0,
-				F_DEC, arg1,
+				F_FD, arg0,
+				F_FD, arg1,
 				F_DEC, arg2,
 				F_DEC, arg3,
 				result_known, result);
 	} else if (nr == SYS_sync_file_range) {
 		buf = print_syscall(buf, "sync_file_range", 4,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_DEC, arg1,
 				F_DEC, arg2,
 				F_DEC, arg3,
 				result_known, result);
 	} else if (nr == SYS_utimensat) {
 		buf = print_syscall(buf, "utimensat", 4,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_STR, arg1,
 				F_HEX, arg2,
 				F_DEC, arg3,
 				result_known, result);
 	} else if (nr == SYS_fallocate) {
 		buf = print_syscall(buf, "fallocate", 4,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_DEC, arg1,
 				F_DEC, arg2,
 				F_DEC, arg3,
 				result_known, result);
 	} else if (nr == SYS_dup3) {
 		buf = print_syscall(buf, "dup3", 3,
-				F_DEC, arg0,
-				F_DEC, arg1,
-				F_DEC, arg2,
+				F_FD, arg0,
+				F_FD, arg1,
+				F_FD, arg2,
 				result_known, result);
 	} else if (nr == SYS_preadv) {
 		buf = print_syscall(buf, "preadv", 4,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_HEX, arg1,
 				F_DEC, arg2,
 				F_DEC, arg3,
 				result_known, result);
 	} else if (nr == SYS_pwritev) {
 		buf = print_syscall(buf, "pwritev", 3,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_HEX, arg1,
 				F_DEC, arg2,
 				result_known, result);
 	} else if (nr == SYS_name_to_handle_at) {
 		buf = print_syscall(buf, "name_to_handle_at", 5,
-				F_DEC, arg0,
+				F_ATFD, arg0,
 				F_STR, arg1,
 				F_HEX, arg2,
 				F_HEX, arg3,
@@ -1032,20 +1118,20 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 	} else if (nr == SYS_open_by_handle_at) {
 		buf = print_syscall(buf, "open_by_handle_at", 3,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_HEX, arg1,
 				F_DEC, arg2,
 				result_known, result);
 	} else if (nr == SYS_syncfs) {
 		buf = print_syscall(buf, "syncfs", 1,
-				F_DEC, arg0,
+				F_FD, arg0,
 				result_known, result);
 #ifdef SYS_renameat2
 	} else if (nr == SYS_renameat2) {
 		buf = print_syscall(buf, "renameat2", 5,
-				F_DEC, arg0,
+				F_ATFD, arg0,
 				F_STR, arg1,
-				F_DEC, arg2,
+				F_ATFD, arg2,
 				F_STR, arg3,
 				F_DEC, arg4,
 				result_known, result);
@@ -1059,7 +1145,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 #ifdef SYS_execveat
 	} else if (nr == SYS_execveat) {
 		buf = print_syscall(buf, "execveat", 4,
-				F_DEC, arg0,
+				F_ATFD, arg0,
 				F_STR, arg1,
 				F_HEX, arg2,
 				F_HEX, arg3,
@@ -1080,7 +1166,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 	} else if (nr == SYS_fork) {
 		buf = print_syscall(buf, "fork", 0, result_known, result);
 	} else if (nr == SYS_vfork) {
-		buf += sprintf(buf, "vfork()");
+		buf = print_cstr(buf, "vfork()");
 	} else if (nr == SYS_wait4) {
 		buf = print_syscall(buf, "wait4", 4,
 				F_DEC, arg0,
@@ -1091,32 +1177,32 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 	} else if (nr == SYS_select) {
 		buf = print_syscall(buf, "select", 5,
 				F_DEC, arg0,
-				F_HEX, arg1,
-				F_HEX, arg2,
-				F_HEX, arg3,
-				F_HEX, arg4,
+				F_POINTER, arg1,
+				F_POINTER, arg2,
+				F_POINTER, arg3,
+				F_POINTER, arg4,
 				result_known, result);
 	} else if (nr == SYS_pselect6) {
 		buf = print_syscall(buf, "pselect6", 6,
 				F_DEC, arg0,
-				F_HEX, arg1,
-				F_HEX, arg2,
-				F_HEX, arg3,
-				F_HEX, arg4,
-				F_HEX, arg5,
+				F_POINTER, arg1,
+				F_POINTER, arg2,
+				F_POINTER, arg3,
+				F_POINTER, arg4,
+				F_POINTER, arg5,
 				result_known, result);
 	} else if (nr == SYS_poll) {
 		buf = print_syscall(buf, "poll", 3,
-				F_HEX, arg0,
+				F_POINTER, arg0,
 				F_DEC, arg1,
 				F_DEC, arg2,
 				result_known, result);
 	} else if (nr == SYS_ppoll) {
 		buf = print_syscall(buf, "ppoll", 4,
-				F_HEX, arg0,
+				F_POINTER, arg0,
 				F_DEC, arg1,
-				F_HEX, arg2,
-				F_HEX, arg3,
+				F_POINTER, arg2,
+				F_POINTER, arg3,
 				result_known, result);
 	} else if (nr == SYS_epoll_wait) {
 		buf = print_syscall(buf, "epoll_wait", 4,
@@ -1277,7 +1363,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 	} else if (nr == SYS_connect) {
 		buf = print_syscall(buf, "connect", 3,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_HEX, arg1,
 				F_DEC, arg2,
 				result_known, result);
@@ -1317,7 +1403,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 	} else if (nr == SYS_fgetxattr) {
 		buf = print_syscall(buf, "fgetxattr", 4,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_STR, arg1,
 				F_BUF, arg3, arg2,
 				F_DEC, arg3,
@@ -1339,7 +1425,7 @@ intercept_log_syscall(const char *libpath, long nr, long arg0, long arg1,
 				result_known, result);
 	} else if (nr == SYS_bind) {
 		buf = print_syscall(buf, "bind", 3,
-				F_DEC, arg0,
+				F_FD, arg0,
 				F_HEX, arg1,
 				F_DEC, arg2,
 				result_known, result);
