@@ -137,7 +137,7 @@ intercept_disasm_destroy(struct intercept_disasm_context *context)
  */
 static void
 check_op(struct intercept_disasm_result *result, cs_x86_op *op,
-		const unsigned char *code)
+	 const unsigned char *code)
 {
 	/*
 	 * the address the RIP register is going to contain during the
@@ -147,7 +147,7 @@ check_op(struct intercept_disasm_result *result, cs_x86_op *op,
 
 	if (op->type == X86_OP_REG) {
 		if (op->reg == X86_REG_IP ||
-				op->reg == X86_REG_RIP) {
+		    op->reg == X86_REG_RIP) {
 			/*
 			 * Example: mov %rip, %rax
 			 */
@@ -169,10 +169,10 @@ check_op(struct intercept_disasm_result *result, cs_x86_op *op,
 		}
 	} else if (op->type == X86_OP_MEM) {
 		if (op->mem.base == X86_REG_IP ||
-				op->mem.base == X86_REG_RIP ||
-				op->mem.index == X86_REG_IP ||
-				op->mem.index == X86_REG_RIP ||
-				result->is_jump) {
+		    op->mem.base == X86_REG_RIP ||
+		    op->mem.index == X86_REG_IP ||
+		    op->mem.index == X86_REG_RIP ||
+		    result->is_jump) {
 			result->has_ip_relative_opr = true;
 			assert(!result->is_indirect_jump);
 
@@ -193,7 +193,7 @@ check_op(struct intercept_disasm_result *result, cs_x86_op *op,
 			result->rip_ref_addr = (void *)op->imm;
 
 			result->rip_disp =
-			    (int32_t)((unsigned char *)op->imm - rip);
+				(int32_t)((unsigned char *)op->imm - rip);
 		}
 	}
 }
@@ -205,7 +205,7 @@ check_op(struct intercept_disasm_result *result, cs_x86_op *op,
  */
 struct intercept_disasm_result
 intercept_disasm_next_instruction(struct intercept_disasm_context *context,
-					const unsigned char *code)
+				  const unsigned char *code)
 {
 	struct intercept_disasm_result result = {0, };
 	const unsigned char *start = code;
@@ -213,7 +213,7 @@ intercept_disasm_next_instruction(struct intercept_disasm_context *context,
 	uint64_t address = (uint64_t)code;
 
 	if (!cs_disasm_iter(context->handle, &start, &size,
-	    &address, context->insn)) {
+			    &address, context->insn)) {
 		result.is_set = false;
 		result.length = 0;
 		return result;
@@ -283,9 +283,9 @@ intercept_disasm_next_instruction(struct intercept_disasm_context *context,
 	 * rely on the RIP register ).
 	 */
 	for (uint8_t op_i = 0;
-	    op_i < context->insn->detail->x86.op_count; ++op_i)
+	     op_i < context->insn->detail->x86.op_count; ++op_i)
 		check_op(&result, context->insn->detail->x86.operands + op_i,
-		    code);
+			 code);
 
 	result.is_set = true;
 

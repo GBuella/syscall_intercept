@@ -231,8 +231,8 @@ is_nop_in_range(unsigned char *address, const struct range *nop)
  */
 static void
 assign_nop_trampoline(struct intercept_desc *desc,
-		struct patch_desc *patch,
-		size_t *next_nop_i)
+		      struct patch_desc *patch,
+		      size_t *next_nop_i)
 {
 	struct range *nop = desc->nop_table + *next_nop_i;
 
@@ -279,11 +279,11 @@ is_relocateable_before_syscall(struct intercept_disasm_result ins)
 		return false;
 
 	return !(ins.has_ip_relative_opr ||
-	    ins.is_call ||
-	    ins.is_rel_jump ||
-	    ins.is_jump ||
-	    ins.is_ret ||
-	    ins.is_syscall);
+		 ins.is_call ||
+		 ins.is_rel_jump ||
+		 ins.is_jump ||
+		 ins.is_ret ||
+		 ins.is_syscall);
 }
 
 /*
@@ -300,10 +300,10 @@ is_relocateable_after_syscall(struct intercept_disasm_result ins)
 		return false;
 
 	return !(ins.has_ip_relative_opr ||
-	    ins.is_call ||
-	    ins.is_rel_jump ||
-	    ins.is_jump ||
-	    ins.is_syscall);
+		 ins.is_call ||
+		 ins.is_rel_jump ||
+		 ins.is_jump ||
+		 ins.is_syscall);
 }
 
 
@@ -315,29 +315,29 @@ is_relocateable_after_syscall(struct intercept_disasm_result ins)
  */
 static void
 check_surrounding_instructions(struct intercept_desc *desc,
-				struct patch_desc *patch)
+			       struct patch_desc *patch)
 {
 	patch->uses_prev_ins =
-	    is_relocateable_before_syscall(patch->preceding_ins) &&
-	    !is_overwritable_nop(&patch->preceding_ins) &&
-	    !has_jump(desc, patch->syscall_addr);
+		is_relocateable_before_syscall(patch->preceding_ins) &&
+		!is_overwritable_nop(&patch->preceding_ins) &&
+		!has_jump(desc, patch->syscall_addr);
 
 	if (patch->uses_prev_ins) {
 		patch->uses_prev_ins_2 =
-		    patch->uses_prev_ins &&
-		    is_relocateable_before_syscall(patch->preceding_ins_2) &&
-		    !is_overwritable_nop(&patch->preceding_ins_2) &&
-		    !has_jump(desc, patch->syscall_addr
-			- patch->preceding_ins.length);
+			patch->uses_prev_ins &&
+			is_relocateable_before_syscall(patch->preceding_ins_2) &&
+			!is_overwritable_nop(&patch->preceding_ins_2) &&
+			!has_jump(desc, patch->syscall_addr
+				  - patch->preceding_ins.length);
 	} else {
 		patch->uses_prev_ins_2 = false;
 	}
 
 	patch->uses_next_ins =
-	    is_relocateable_after_syscall(patch->following_ins) &&
-	    !is_overwritable_nop(&patch->following_ins) &&
-	    !has_jump(desc,
-		patch->syscall_addr + SYSCALL_INS_SIZE);
+		is_relocateable_after_syscall(patch->following_ins) &&
+		!is_overwritable_nop(&patch->following_ins) &&
+		!has_jump(desc,
+			  patch->syscall_addr + SYSCALL_INS_SIZE);
 }
 
 /*
@@ -378,7 +378,7 @@ create_patch_wrappers(struct intercept_desc *desc)
 			patch->uses_prev_ins_2 = false;
 			patch->uses_next_ins = false;
 			patch->dst_jmp_patch =
-			    patch->nop_trampoline.address + 2;
+				patch->nop_trampoline.address + 2;
 			/*
 			 * The first two bytes of the nop are used for
 			 * something else, see the explanation
@@ -391,7 +391,7 @@ create_patch_wrappers(struct intercept_desc *desc)
 			 * where the syscall instruction was originally.
 			 */
 			patch->return_address =
-			    patch->syscall_addr + SYSCALL_INS_SIZE;
+				patch->syscall_addr + SYSCALL_INS_SIZE;
 
 		} else {
 			/*
@@ -425,12 +425,12 @@ create_patch_wrappers(struct intercept_desc *desc)
 			if (patch->uses_prev_ins) {
 				length += patch->preceding_ins.length;
 				patch->dst_jmp_patch -=
-				    patch->preceding_ins.length;
+					patch->preceding_ins.length;
 
 				if (patch->uses_prev_ins_2) {
 					length += patch->preceding_ins_2.length;
 					patch->dst_jmp_patch -=
-					    patch->preceding_ins_2.length;
+						patch->preceding_ins_2.length;
 				}
 			}
 
@@ -457,8 +457,8 @@ create_patch_wrappers(struct intercept_desc *desc)
 				 * the syscall.
 				 */
 				patch->return_address = patch->syscall_addr +
-				    SYSCALL_INS_SIZE +
-				    patch->following_ins.length;
+					SYSCALL_INS_SIZE +
+					patch->following_ins.length;
 			} else {
 				/*
 				 * Address of the syscall instruction
@@ -484,13 +484,13 @@ create_patch_wrappers(struct intercept_desc *desc)
 				char buffer[0x1000];
 
 				int l = snprintf(buffer, sizeof(buffer),
-					"unintercepted syscall at: %s 0x%lx\n",
-					desc->path,
-					patch->syscall_offset);
+						 "unintercepted syscall at: %s 0x%lx\n",
+						 desc->path,
+						 patch->syscall_offset);
 
 				intercept_log(buffer, (size_t)l);
 				xabort("not enough space for patching"
-				    " around syscal");
+				       " around syscal");
 			}
 		}
 
@@ -519,7 +519,7 @@ static bool
 is_asm_wrapper_space_full(void)
 {
 	return next_asm_wrapper_space + tmpl_size + 256 >
-			asm_wrapper_space + sizeof(asm_wrapper_space);
+		asm_wrapper_space + sizeof(asm_wrapper_space);
 }
 
 
@@ -537,9 +537,9 @@ init_patcher(void)
 	assert(&intercept_asm_wrapper_patch_desc_addr > begin);
 	assert(&intercept_asm_wrapper_wrapper_level1_addr > begin);
 	assert(&intercept_asm_wrapper_patch_desc_addr <
-		&intercept_asm_wrapper_tmpl_end);
+	       &intercept_asm_wrapper_tmpl_end);
 	assert(&intercept_asm_wrapper_wrapper_level1_addr <
-		&intercept_asm_wrapper_tmpl_end);
+	       &intercept_asm_wrapper_tmpl_end);
 
 	tmpl_size = (size_t)(&intercept_asm_wrapper_tmpl_end - begin);
 	o_patch_desc_addr = &intercept_asm_wrapper_patch_desc_addr - begin;
@@ -614,14 +614,14 @@ create_wrapper(struct patch_desc *patch)
 	memcpy(dst, intercept_asm_wrapper_tmpl, tmpl_size);
 	create_movabs_r11(dst + o_patch_desc_addr, (uintptr_t)patch);
 	create_movabs_r11(dst + o_wrapper_level1_addr,
-				(uintptr_t)&intercept_wrapper);
+			  (uintptr_t)&intercept_wrapper);
 	dst += tmpl_size;
 
 	/* Copy the following instruction */
 	if (patch->uses_next_ins) {
 		memcpy(dst,
-		    patch->syscall_addr + SYSCALL_INS_SIZE,
-		    patch->following_ins.length);
+		       patch->syscall_addr + SYSCALL_INS_SIZE,
+		       patch->following_ins.length);
 		dst += patch->following_ins.length;
 	}
 
@@ -659,7 +659,7 @@ after_nop(const struct range *nop)
 
 static void
 mprotect_no_intercept(void *addr, size_t len, int prot,
-			const char *msg_on_error)
+		      const char *msg_on_error)
 {
 	long result = syscall_no_intercept(SYS_mprotect, addr, len, prot);
 
@@ -683,8 +683,8 @@ activate_patches(struct intercept_desc *desc)
 	size = (size_t)(desc->text_end - first_page);
 
 	mprotect_no_intercept(first_page, size,
-	    PROT_READ | PROT_WRITE | PROT_EXEC,
-	    "mprotect PROT_READ | PROT_WRITE | PROT_EXEC");
+			      PROT_READ | PROT_WRITE | PROT_EXEC,
+			      "mprotect PROT_READ | PROT_WRITE | PROT_EXEC");
 
 	for (unsigned i = 0; i < desc->count; ++i) {
 		const struct patch_desc *patch = desc->items + i;
@@ -712,16 +712,16 @@ activate_patches(struct intercept_desc *desc)
 
 			/* jump - escape the text segment */
 			create_jump(JMP_OPCODE,
-				patch->dst_jmp_patch, desc->next_trampoline);
+				    patch->dst_jmp_patch, desc->next_trampoline);
 
 			/* jump - escape the 2 GB range of the text segment */
 			create_absolute_jump(
-				desc->next_trampoline, patch->asm_wrapper);
+					     desc->next_trampoline, patch->asm_wrapper);
 
 			desc->next_trampoline += TRAMPOLINE_SIZE;
 		} else {
 			create_jump(JMP_OPCODE,
-				patch->dst_jmp_patch, patch->asm_wrapper);
+				    patch->dst_jmp_patch, patch->asm_wrapper);
 		}
 
 		if (patch->uses_nop_trampoline) {
@@ -741,28 +741,28 @@ activate_patches(struct intercept_desc *desc)
 
 			/* jump from syscall to mini trampoline */
 			create_short_jump(patch->syscall_addr,
-			    patch->dst_jmp_patch);
+					  patch->dst_jmp_patch);
 
 			/*
 			 * Short jump to next instruction, skipping the newly
 			 * created trampoline jump.
 			 */
 			create_short_jump(patch->nop_trampoline.address,
-			    after_nop(&patch->nop_trampoline));
+					  after_nop(&patch->nop_trampoline));
 		} else {
 			unsigned char *byte;
 
 			for (byte = patch->dst_jmp_patch + JUMP_INS_SIZE;
-				byte < patch->return_address;
-				++byte) {
+			     byte < patch->return_address;
+			     ++byte) {
 				*byte = INT3_OPCODE;
 			}
 		}
 	}
 
 	mprotect_no_intercept(first_page, size,
-	    PROT_READ | PROT_EXEC,
-	    "mprotect PROT_READ | PROT_EXEC");
+			      PROT_READ | PROT_EXEC,
+			      "mprotect PROT_READ | PROT_EXEC");
 }
 
 /*
@@ -776,8 +776,8 @@ void
 mprotect_asm_wrappers(void)
 {
 	mprotect_no_intercept(
-	    round_down_address(asm_wrapper_space + PAGE_SIZE),
-	    sizeof(asm_wrapper_space) - PAGE_SIZE,
-	    PROT_READ | PROT_EXEC,
-	    "mprotect_asm_wrappers PROT_READ | PROT_EXEC");
+			      round_down_address(asm_wrapper_space + PAGE_SIZE),
+			      sizeof(asm_wrapper_space) - PAGE_SIZE,
+			      PROT_READ | PROT_EXEC,
+			      "mprotect_asm_wrappers PROT_READ | PROT_EXEC");
 }

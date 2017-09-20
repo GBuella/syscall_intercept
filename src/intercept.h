@@ -58,7 +58,7 @@ void intercept_patch_with_prefix(unsigned char *syscall_addr);
 
 
 void intercept_patch_with_postfix(unsigned char *syscall_addr,
-				unsigned postfix_len);
+				  unsigned postfix_len);
 
 #define INTERCEPTOR_EXIT_CODE 111
 

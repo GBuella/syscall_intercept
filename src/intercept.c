@@ -60,10 +60,10 @@
 #include "magic_syscalls.h"
 
 int (*intercept_hook_point)(long syscall_number,
-			long arg0, long arg1,
-			long arg2, long arg3,
-			long arg4, long arg5,
-			long *result)
+			    long arg0, long arg1,
+			    long arg2, long arg3,
+			    long arg4, long arg5,
+			    long *result)
 	__attribute__((visibility("default")));
 
 void (*intercept_hook_point_clone_child)(void)
@@ -165,7 +165,7 @@ allocate_next_obj_desc(void)
 		objs = xmmap_anon(sizeof(objs[0]));
 	else
 		objs = xmremap(objs, objs_count * sizeof(objs[0]),
-			(objs_count + 1) * sizeof(objs[0]));
+			       (objs_count + 1) * sizeof(objs[0]));
 
 	++objs_count;
 	return objs + objs_count - 1;
@@ -193,7 +193,7 @@ get_lib_short_name(const char *name)
  */
 static bool
 str_match(const char *name, size_t name_len,
-		const char *expected)
+	  const char *expected)
 {
 	return name_len == strlen(expected) &&
 		strncmp(name, expected, name_len) == 0;
@@ -231,7 +231,7 @@ get_name_from_proc_maps(uintptr_t addr)
 
 		/* Read the path into next_path */
 		if (sscanf(line, "%p-%p %*s %*x %*x:%*x %*u %s",
-		    (void **)&start, (void **)&end, next_path) != 3)
+			   (void **)&start, (void **)&end, next_path) != 3)
 			continue;
 
 		if (addr < (uintptr_t)start)
@@ -411,7 +411,7 @@ analyze_object(struct dl_phdr_info *info, size_t size, void *data)
 	const char *path;
 
 	debug_dump("analyze_object called on \"%s\" at 0x%016" PRIxPTR "\n",
-	    info->dlpi_name, info->dlpi_addr);
+		   info->dlpi_name, info->dlpi_addr);
 
 	if ((path = get_object_path(info)) == NULL)
 		return 0;
@@ -458,7 +458,7 @@ intercept(int argc, char **argv)
 	debug_dumps_on = getenv("INTERCEPT_DEBUG_DUMP") != NULL;
 	patch_all_objs = (getenv("INTERCEPT_ALL_OBJS") != NULL);
 	intercept_setup_log(getenv("INTERCEPT_LOG"),
-			getenv("INTERCEPT_LOG_TRUNC"));
+			    getenv("INTERCEPT_LOG_TRUNC"));
 	log_header();
 	init_patcher();
 
@@ -617,13 +617,13 @@ intercept_routine(struct context *context)
 
 	if (intercept_hook_point != NULL)
 		forward_to_kernel = intercept_hook_point(desc.nr,
-		    desc.args[0],
-		    desc.args[1],
-		    desc.args[2],
-		    desc.args[3],
-		    desc.args[4],
-		    desc.args[5],
-		    &result);
+							 desc.args[0],
+							 desc.args[1],
+							 desc.args[2],
+							 desc.args[3],
+							 desc.args[4],
+							 desc.args[5],
+							 &result);
 
 	if (desc.nr == SYS_vfork || desc.nr == SYS_rt_sigreturn) {
 		/* can't handle these syscalls the normal way */
@@ -648,12 +648,12 @@ intercept_routine(struct context *context)
 				.rax = context->rax, .rdx = 2 };
 		else
 			result = syscall_no_intercept(desc.nr,
-					desc.args[0],
-					desc.args[1],
-					desc.args[2],
-					desc.args[3],
-					desc.args[4],
-					desc.args[5]);
+						      desc.args[0],
+						      desc.args[1],
+						      desc.args[2],
+						      desc.args[3],
+						      desc.args[4],
+						      desc.args[5]);
 	}
 
 	intercept_log_syscall(patch, &desc, KNOWN, result);

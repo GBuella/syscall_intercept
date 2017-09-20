@@ -106,6 +106,6 @@ void intercept_disasm_destroy(struct intercept_disasm_context *context);
 
 struct intercept_disasm_result
 intercept_disasm_next_instruction(struct intercept_disasm_context *context,
-					const unsigned char *code);
+				  const unsigned char *code);
 
 #endif

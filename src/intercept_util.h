@@ -90,9 +90,9 @@ void intercept_log(const char *buffer, size_t len);
 enum intercept_log_result { KNOWN, UNKNOWN };
 
 void intercept_log_syscall(const struct patch_desc *,
-				const struct syscall_desc *,
-				enum intercept_log_result result_known,
-				long result);
+			   const struct syscall_desc *,
+			   enum intercept_log_result result_known,
+			   long result);
 
 void intercept_log_close(void);
 

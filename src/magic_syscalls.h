@@ -75,15 +75,15 @@ static inline void
 magic_syscall_start_log(const char *path, const char *trunc)
 {
 	syscall(SYS_write, SYSCALL_INT_MAGIC_WRITE_FD,
-	    start_log_message, sizeof(start_log_message),
-	    path, trunc);
+		start_log_message, sizeof(start_log_message),
+		path, trunc);
 }
 
 static inline void
 magic_syscall_stop_log(void)
 {
 	syscall(SYS_write, SYSCALL_INT_MAGIC_WRITE_FD,
-	    stop_log_message, sizeof(stop_log_message));
+		stop_log_message, sizeof(stop_log_message));
 }
 
 int handle_magic_syscalls(struct syscall_desc *desc, long *result);

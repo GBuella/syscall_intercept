@@ -88,7 +88,7 @@ add_table_info(struct section_list *list, const Elf64_Shdr *header)
  */
 static void
 add_text_info(struct intercept_desc *desc, const Elf64_Shdr *header,
-		Elf64_Half index)
+	      Elf64_Half index)
 {
 	desc->text_offset = header->sh_offset;
 	desc->text_start = desc->base_addr + header->sh_addr;
@@ -120,7 +120,7 @@ find_sections(struct intercept_desc *desc, int fd)
 
 	xlseek(fd, sec_headers[elf_header.e_shstrndx].sh_offset, SEEK_SET);
 	xread(fd, sec_string_table,
-	    sec_headers[elf_header.e_shstrndx].sh_size);
+	      sec_headers[elf_header.e_shstrndx].sh_size);
 
 	bool text_section_found = false;
 
@@ -129,12 +129,12 @@ find_sections(struct intercept_desc *desc, int fd)
 		char *name = sec_string_table + section->sh_name;
 
 		debug_dump("looking at section: \"%s\" type: %ld\n",
-		    name, (long)section->sh_type);
+			   name, (long)section->sh_type);
 		if (strcmp(name, ".text") == 0) {
 			text_section_found = true;
 			add_text_info(desc, section, i);
 		} else if (section->sh_type == SHT_SYMTAB ||
-		    section->sh_type == SHT_DYNSYM) {
+			   section->sh_type == SHT_DYNSYM) {
 			debug_dump("found symbol table: %s\n", name);
 			add_table_info(&desc->symbol_tables, section);
 		} else if (section->sh_type == SHT_RELA) {
@@ -201,7 +201,7 @@ allocate_nop_table(struct intercept_desc *desc)
 	desc->max_nop_count = calculate_table_count(desc);
 	desc->nop_count = 0;
 	desc->nop_table =
-	    xmmap_anon(desc->max_nop_count * sizeof(desc->nop_table[0]));
+		xmmap_anon(desc->max_nop_count * sizeof(desc->nop_table[0]));
 }
 
 /*
@@ -248,7 +248,7 @@ has_jump(const struct intercept_desc *desc, unsigned char *addr)
 {
 	if (addr >= desc->text_start && addr <= desc->text_end)
 		return is_bit_set(desc->jump_table,
-		    (uint64_t)(addr - desc->text_start));
+				  (uint64_t)(addr - desc->text_start));
 	else
 		return false;
 }
@@ -289,10 +289,10 @@ mark_jump(const struct intercept_desc *desc, const unsigned char *addr)
  */
 static void
 find_jumps_in_section_syms(struct intercept_desc *desc, Elf64_Shdr *section,
-				int fd)
+			   int fd)
 {
 	assert(section->sh_type == SHT_SYMTAB ||
-		section->sh_type == SHT_DYNSYM);
+	       section->sh_type == SHT_DYNSYM);
 
 	size_t sym_count = section->sh_size / sizeof(Elf64_Sym);
 
@@ -309,7 +309,7 @@ find_jumps_in_section_syms(struct intercept_desc *desc, Elf64_Shdr *section,
 			continue; /* it is not in the text section */
 
 		debug_dump("jump target: %lx\n",
-		    (unsigned long)syms[i].st_value);
+			   (unsigned long)syms[i].st_value);
 
 		unsigned char *address = desc->base_addr + syms[i].st_value;
 
@@ -340,7 +340,7 @@ find_jumps_in_section_syms(struct intercept_desc *desc, Elf64_Shdr *section,
  */
 static void
 find_jumps_in_section_rela(struct intercept_desc *desc, Elf64_Shdr *section,
-				int fd)
+			   int fd)
 {
 	assert(section->sh_type == SHT_RELA);
 
@@ -358,10 +358,10 @@ find_jumps_in_section_rela(struct intercept_desc *desc, Elf64_Shdr *section,
 				/* Relocation type: "Adjust by program base" */
 
 				debug_dump("jump target: %lx\n",
-				    (unsigned long)syms[i].r_addend);
+					   (unsigned long)syms[i].r_addend);
 
 				unsigned char *address =
-				    desc->base_addr + syms[i].r_addend;
+					desc->base_addr + syms[i].r_addend;
 
 				mark_jump(desc, address);
 
@@ -429,7 +429,7 @@ add_new_patch(struct intercept_desc *desc)
  *
  */
 bool
-is_overwritable_nop(const struct intercept_disasm_result *ins)
+	is_overwritable_nop(const struct intercept_disasm_result *ins)
 {
 	return ins->is_nop && ins->length >= 2 + 5;
 }
@@ -471,7 +471,7 @@ crawl_text(struct intercept_desc *desc)
 	 */
 	unsigned has_prevs = 0;
 	struct intercept_disasm_context *context =
-	    intercept_disasm_init(desc->text_start, desc->text_end);
+		intercept_disasm_init(desc->text_start, desc->text_end);
 
 	while (code <= desc->text_end) {
 		struct intercept_disasm_result result;
@@ -526,7 +526,7 @@ crawl_text(struct intercept_desc *desc)
 			patch->syscall_addr = code - SYSCALL_INS_SIZE;
 
 			ptrdiff_t syscall_offset = patch->syscall_addr -
-			    (desc->text_start - desc->text_offset);
+				(desc->text_start - desc->text_offset);
 
 			assert(syscall_offset >= 0);
 
@@ -612,7 +612,7 @@ allocate_trampoline_table(struct intercept_desc *desc)
 		 */
 		guess = desc->text_end - INT32_MAX;
 		guess = (unsigned char *)(((uintptr_t)guess)
-				& ~((uintptr_t)(0xfff))) + 0x1000;
+					  & ~((uintptr_t)(0xfff))) + 0x1000;
 	}
 
 	if ((uintptr_t)guess < get_min_address())
@@ -657,9 +657,9 @@ allocate_trampoline_table(struct intercept_desc *desc)
 	fclose(maps);
 
 	desc->trampoline_table = mmap(guess, size,
-					PROT_READ | PROT_WRITE | PROT_EXEC,
-					MAP_FIXED | MAP_PRIVATE | MAP_ANON,
-					-1, 0);
+				      PROT_READ | PROT_WRITE | PROT_EXEC,
+				      MAP_FIXED | MAP_PRIVATE | MAP_ANON,
+				      -1, 0);
 
 	if (desc->trampoline_table == MAP_FAILED)
 		xabort("unable to allocate space for trampoline table");
@@ -682,30 +682,29 @@ void
 find_syscalls(struct intercept_desc *desc)
 {
 	debug_dump("find_syscalls in %s "
-	    "at base_addr 0x%016" PRIxPTR "\n",
-	    desc->path,
-	    (uintptr_t)desc->base_addr);
+		   "at base_addr 0x%016" PRIxPTR "\n",
+		   desc->path,
+		   (uintptr_t)desc->base_addr);
 
 	desc->count = 0;
 
 	int fd = open_orig_file(desc);
 
 	find_sections(desc, fd);
-	debug_dump(
-	    "%s .text mapped at 0x%016" PRIxPTR " - 0x%016" PRIxPTR " \n",
-	    desc->path,
-	    (uintptr_t)desc->text_start,
-	    (uintptr_t)desc->text_end);
+	debug_dump("%s .text at 0x%016" PRIxPTR " - 0x%016" PRIxPTR " \n",
+		   desc->path,
+		   (uintptr_t)desc->text_start,
+		   (uintptr_t)desc->text_end);
 	allocate_jump_table(desc);
 	allocate_nop_table(desc);
 
 	for (Elf64_Half i = 0; i < desc->symbol_tables.count; ++i)
 		find_jumps_in_section_syms(desc,
-		    desc->symbol_tables.headers + i, fd);
+					   desc->symbol_tables.headers + i, fd);
 
 	for (Elf64_Half i = 0; i < desc->rela_tables.count; ++i)
 		find_jumps_in_section_rela(desc,
-		    desc->rela_tables.headers + i, fd);
+					   desc->rela_tables.headers + i, fd);
 
 	syscall_no_intercept(SYS_close, fd);
 
