@@ -67,7 +67,7 @@ intercept_asm_wrapper_tmpl:
 
 0:	movq        %rsp, %r11 /* remember original rsp */
 	subq        $0x80, %rsp  /* avoid the red zone */
-	andq        $-16, %rsp /* align the stack */
+	andq        $-64, %rsp /* align the stack */
 	subq        $0x20, %rsp /* allocate stack for some locals */
 	movq        %r11, (%rsp) /* orignal rsp on stack */
 intercept_asm_wrapper_patch_desc_addr:

@@ -87,7 +87,7 @@ intercept_wrapper:
 	 * aligned. It is very easy to forget about this when making changes to this
 	 * code.
 	 */
-	subq        $0x448, %rsp
+	subq        $0x758, %rsp
 	.cfi_def_cfa_offset 0x0
 
 	/* Save all GPRs on the stack */
@@ -104,7 +104,7 @@ intercept_wrapper:
 	.cfi_offset 5, 0x140
 	movq        %rbp, 0x138 (%rsp)
 	.cfi_offset 6, 0x138
-	movq        0x450 (%rsp), %r11 /* fetch original value of rsp */
+	movq        0x760 (%rsp), %r11 /* fetch original value of rsp */
 	movq        %r11, 0x130 (%rsp)
 	.cfi_offset 7, 0x130
 	movq        %r8, 0x128 (%rsp)
@@ -122,46 +122,26 @@ intercept_wrapper:
 	.cfi_offset 14, 0x100
 	movq        %r15, 0xf8 (%rsp)
 	.cfi_offset 15, 0xf8
-	movq        0x458 (%rsp), %r11 /* fetch pointer to patch_desc */
+	movq        0x768 (%rsp), %r11 /* fetch pointer to patch_desc */
 	movq        %r11, 0xe8 (%rsp)
 	movq        (%r11), %r11 /* fetch original value of rip */
 	movq        %r11, 0xf0 (%rsp)
 	.cfi_offset 16, 0xf0
 
-	movb        intercept_routine_must_save_ymm (%rip), %al
-	test        %al, %al
-	jz          0f
+#	mov         $0xffffffffffffffff, %rax
+	mov         $0x1, %rdx
+	xorq        %rax, %rax
+	movq        %rax, 0x400 (%rsp)
+	movq        %rax, 0x408 (%rsp)
+	movq        %rax, 0x410 (%rsp)
+	movq        %rax, 0x418 (%rsp)
+	movq        %rax, 0x420 (%rsp)
+	movq        %rax, 0x428 (%rsp)
+	movq        %rax, 0x430 (%rsp)
+	movq        %rax, 0x438 (%rsp)
+	xsave64     0x200 (%rsp)
+	xrstor64    0x200 (%rsp)
 
-	/*
-	 * Save the YMM registers.
-	 * Use vmovups. Must not use vmovaps, since 32 byte alignment is not
-	 * guaranteed.
-	 * One could just align the stack for this, but that would need
-	 * more explanation in comments in other places about why overaligned
-	 * stack is needed.
-	 */
-	vmovups     %ymm0, 0x3c0 (%rsp)
-	vmovups     %ymm1, 0x380 (%rsp)
-	vmovups     %ymm2, 0x340 (%rsp)
-	vmovups     %ymm3, 0x300 (%rsp)
-	vmovups     %ymm4, 0x2c0 (%rsp)
-	vmovups     %ymm5, 0x280 (%rsp)
-	vmovups     %ymm6, 0x240 (%rsp)
-	vmovups     %ymm7, 0x200 (%rsp)
-	jmp         1f
-
-0:
-	/* Save the XMM registers. */
-	movaps      %xmm0, 0x3c0 (%rsp)
-	movaps      %xmm1, 0x380 (%rsp)
-	movaps      %xmm2, 0x340 (%rsp)
-	movaps      %xmm3, 0x300 (%rsp)
-	movaps      %xmm4, 0x2c0 (%rsp)
-	movaps      %xmm5, 0x280 (%rsp)
-	movaps      %xmm6, 0x240 (%rsp)
-	movaps      %xmm7, 0x200 (%rsp)
-
-1:
 	/* argument passed to intercept_routine */
 	leaq        0xe8 (%rsp), %rdi
 
@@ -180,39 +160,14 @@ intercept_wrapper:
 	 * from the template.
 	 */
 
+	movq        %rax, %r12
 	movq        %rdx, %r11
-	/*
-	 * At this point, the return values of this asm function
-	 * are in rax, r11.
-	 *
-	 * Restore the other registers, and return.
-	 */
 
-	movb        intercept_routine_must_save_ymm (%rip), %dl
-	test        %dl, %dl
-	jz          0f
+#mov         $0xffffffffffffffff, %rax
+	mov         $0x1, %rdx
+	xorq        %rax, %rax
+	xrstor64    0x200 (%rsp)
 
-	vmovups     0x3c0 (%rsp), %ymm0
-	vmovups     0x380 (%rsp), %ymm1
-	vmovups     0x340 (%rsp), %ymm2
-	vmovups     0x300 (%rsp), %ymm3
-	vmovups     0x2c0 (%rsp), %ymm4
-	vmovups     0x280 (%rsp), %ymm5
-	vmovups     0x240 (%rsp), %ymm6
-	vmovups     0x200 (%rsp), %ymm7
-	jmp         1f
-
-0:
-	movaps      0x3c0 (%rsp), %xmm0
-	movaps      0x380 (%rsp), %xmm1
-	movaps      0x340 (%rsp), %xmm2
-	movaps      0x300 (%rsp), %xmm3
-	movaps      0x2c0 (%rsp), %xmm4
-	movaps      0x280 (%rsp), %xmm5
-	movaps      0x240 (%rsp), %xmm6
-	movaps      0x200 (%rsp), %xmm7
-
-1:
 	movq        0x158 (%rsp), %rdx
 	movq        0x150 (%rsp), %rbx
 	movq        0x148 (%rsp), %rsi
@@ -226,7 +181,15 @@ intercept_wrapper:
 	movq        0x100 (%rsp), %r14
 	movq        0xf8 (%rsp), %r15
 
-	addq        $0x448, %rsp
+	addq        $0x758, %rsp
+
+	movq        %r12, %rax
+	/*
+	 * At this point, the return values of this asm function
+	 * are in rax, r11.
+	 *
+	 * Restore the other registers, and return.
+	 */
 
 	retq
 	.cfi_endproc
