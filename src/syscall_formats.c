@@ -1,5 +1,6 @@
 /*
  * Copyright 2017, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -296,7 +297,7 @@ static const struct syscall_format formats[] = {
 	SARGS(pselect6, rdec, arg_, arg_, arg_, arg_, arg_, arg_),
 	SARGS(ppoll, rdec, arg_, arg_, arg_, arg_, arg_),
 	SARGS(unshare, rdec, arg_),
-	SARGS(set_robust_list, rdec, arg_, arg_),
+	SARGS(set_robust_list, rdec, arg_, arg_dec),
 	SARGS(get_robust_list, rdec, arg_, arg_, arg_),
 	SARGS(splice, rdec, arg_fd, arg_, arg_fd, arg_, arg_, arg_),
 	SARGS(tee, rdec, arg_fd, arg_fd, arg_, arg_),
