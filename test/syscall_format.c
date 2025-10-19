@@ -302,18 +302,18 @@ main(int argc, char **argv)
 	close(9);
 
 	/* stat */
-	stat(nullptr, nullptr);
-	stat("/", nullptr);
-	stat(nullptr, &statbuf);
-	stat("/", &statbuf);
-	fstat(0, nullptr);
-	fstat(-1, nullptr);
-	fstat(AT_FDCWD, &statbuf);
-	fstat(2, &statbuf);
-	lstat(nullptr, nullptr);
-	lstat("/", nullptr);
-	lstat(nullptr, &statbuf);
-	lstat("/", &statbuf);
+	syscall(SYS_stat, nullptr, nullptr);
+	syscall(SYS_stat, "/", nullptr);
+	syscall(SYS_stat, nullptr, &statbuf);
+	syscall(SYS_stat, "/", &statbuf);
+	syscall(SYS_fstat, 0, nullptr);
+	syscall(SYS_fstat, -1, nullptr);
+	syscall(SYS_fstat, AT_FDCWD, &statbuf);
+	syscall(SYS_fstat, 2, &statbuf);
+	syscall(SYS_lstat, nullptr, nullptr);
+	syscall(SYS_lstat, "/", nullptr);
+	syscall(SYS_lstat, nullptr, &statbuf);
+	syscall(SYS_lstat, "/", &statbuf);
 	fstatat(AT_FDCWD, input[0], nullptr, 0);
 	fstatat(AT_FDCWD, nullptr, nullptr, 0);
 	fstatat(-1000, "", &statbuf, 0);
@@ -380,15 +380,23 @@ main(int argc, char **argv)
 	access(input[0], X_OK);
 	access("", R_OK | W_OK);
 	access(input[0], X_OK | R_OK | W_OK);
-	faccessat(AT_FDCWD, nullptr, F_OK, 0);
-	faccessat(AT_FDCWD, input[0], X_OK, 0);
-	faccessat(AT_FDCWD, "", R_OK | W_OK, 0);
-	faccessat(9, input[0], X_OK | R_OK | W_OK, 0);
+	syscall(SYS_faccessat, AT_FDCWD, nullptr, F_OK);
+	syscall(SYS_faccessat, AT_FDCWD, input[0], X_OK);
+	syscall(SYS_faccessat, AT_FDCWD, "", R_OK | W_OK);
+	syscall(SYS_faccessat, 9, input[0], X_OK | R_OK | W_OK);
+#ifdef SYS_faccessat2
+	syscall(SYS_faccessat2, AT_FDCWD, nullptr, F_OK, 0);
+	syscall(SYS_faccessat2, AT_FDCWD, input[0], X_OK, 0);
+	syscall(SYS_faccessat2, AT_FDCWD, "", R_OK | W_OK, 0);
 
-	pipe(fd2);
+	syscall(SYS_faccessat2, 9, input[0], X_OK | R_OK | W_OK, AT_EACCESS);
+	syscall(SYS_faccessat2, AT_FDCWD, input[0], X_OK, AT_EMPTY_PATH);
+#endif
+
+	syscall(SYS_pipe, fd2);
 	pipe2(fd2, 0);
 
-	select(2, p0, p1, p2, p3);
+	syscall(SYS_select, 2, p0, p1, p2, p3);
 	syscall(SYS_pselect6, 2, p0, p1, p0, p1, p0);
 
 	sched_yield();
@@ -576,11 +584,11 @@ main(int argc, char **argv)
 	syscall(SYS_rt_sigsuspend, p0, 3);
 	syscall(SYS_sigaltstack, p0, p1);
 
-	utime(input[0], p0);
-	utimes(input[0], p0);
-	futimesat(4, input[0], p0);
+	syscall(SYS_utime, input[0], p0);
+	syscall(SYS_utimes, input[0], p0);
+	syscall(SYS_futimesat, 4, input[0], p0);
 
-	mknod(input[0], 1, 2);
+	syscall(SYS_mknod, input[0], 1, 2);
 	mknodat(1, input[0], 1, 2);
 	mknodat(AT_FDCWD, input[0], 1, 2);
 
