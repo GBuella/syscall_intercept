@@ -1,5 +1,6 @@
 /*
  * Copyright 2016-2017, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -591,12 +592,12 @@ allocate_trampoline_table(struct intercept_desc *desc)
 	char *e = getenv("INTERCEPT_NO_TRAMPOLINE");
 
 	/* Use the extra trampoline table by default */
-	desc->uses_trampoline_table = (e == NULL) || (e[0] == '0');
+	desc->uses_trampoline_table = (e == nullptr) || (e[0] == '0');
 
 	if (!desc->uses_trampoline_table) {
-		desc->trampoline_table = NULL;
+		desc->trampoline_table = nullptr;
 		desc->trampoline_table_size = 0;
-		desc->trampoline_table = NULL;
+		desc->trampoline_table = nullptr;
 		return;
 	}
 
@@ -625,10 +626,10 @@ allocate_trampoline_table(struct intercept_desc *desc)
 
 	size = 64 * 0x1000; /* XXX: don't just guess */
 
-	if ((maps = fopen("/proc/self/maps", "r")) == NULL)
+	if ((maps = fopen("/proc/self/maps", "r")) == nullptr)
 		xabort("fopen /proc/self/maps");
 
-	while ((fgets(line, sizeof(line), maps)) != NULL) {
+	while ((fgets(line, sizeof(line), maps)) != nullptr) {
 		unsigned char *start;
 		unsigned char *end;
 

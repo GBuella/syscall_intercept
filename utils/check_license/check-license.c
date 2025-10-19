@@ -1,6 +1,7 @@
 /*
  * Copyright 2016-2019, Intel Corporation
  * Copyright (c) 2016, Microsoft Corporation. All rights reserved.
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -161,7 +162,7 @@ strstr2(const char *str, const char *sub1, const char *sub2,
 {
 	*pos1 = strstr(str, sub1);
 	*pos2 = strstr(str, sub2);
-	if (*pos1 == NULL || *pos2 == NULL)
+	if (*pos1 == nullptr || *pos2 == nullptr)
 		return -1;
 	return 0;
 }
@@ -196,11 +197,11 @@ format_license(char *license, size_t length)
 
 		/* replace comments with spaces */
 		if (comment_len > 2) {
-			while ((comment = strstr(license, comment_str)) != NULL)
+			while ((comment = strstr(license, comment_str)) != nullptr)
 				for (w = 1; w < comment_len; w++)
 					comment[w] = ' ';
 		} else {
-			while ((comment = strstr(license, comment_str)) != NULL)
+			while ((comment = strstr(license, comment_str)) != nullptr)
 				comment[1] = ' ';
 		}
 	}
@@ -330,7 +331,7 @@ verify_license(const char *path_to_check, char *pattern, const char *filename)
 	int year_first, year_last;
 	int min_year_first = YEAR_INIT_MIN;
 	int max_year_last = YEAR_INIT_MAX;
-	char *err_str = NULL;
+	char *err_str = nullptr;
 	const char *name_to_print = filename ? filename : path_to_check;
 
 	if ((file_to_check = open(path_to_check, O_RDONLY)) == -1) {
@@ -352,7 +353,7 @@ verify_license(const char *path_to_check, char *pattern, const char *filename)
 
 	/* check the copyright notice */
 	copyright = buffer;
-	while ((copyright = strstr(copyright, COPYRIGHT)) != NULL) {
+	while ((copyright = strstr(copyright, COPYRIGHT)) != nullptr) {
 		copyright += COPYRIGHT_LEN;
 
 		/* skip the copyright symbol '(c)' if any */
@@ -462,7 +463,7 @@ mode_check_pattern(const char *path_license, const char *path_to_check)
 	if (create_pattern(path_license, pattern) == -1)
 		return -1;
 
-	return verify_license(path_to_check, pattern, NULL);
+	return verify_license(path_to_check, pattern, nullptr);
 }
 
 /*

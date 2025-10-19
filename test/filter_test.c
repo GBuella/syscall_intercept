@@ -1,5 +1,6 @@
 /*
  * Copyright 2017, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,7 +31,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 #include <syscall.h>

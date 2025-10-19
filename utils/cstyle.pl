@@ -699,8 +699,8 @@ line: while (<$filehandle>) {
 	if (/^\S+\([\S\s]*\)\s*{/) {
 		err("brace of function definition not at beginning of line");
 	}
-	if (/static\s+\S+\s*=\s*(0|NULL)\s*;/) {
-		err("static variable initialized with 0 or NULL");
+	if (/static\s+\S+\s*=\s*(0|nullptr)\s*;/) {
+		err("static variable initialized with 0 or nullptr");
 	}
 	if (/typedef[\S\s]+\*\s*\w+\s*;/) {
 		err("typedefed pointer type");

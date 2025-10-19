@@ -1,5 +1,6 @@
 /*
  * Copyright 2017-2018, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -46,7 +47,7 @@
 #pragma clang diagnostic ignored "-Wunused-result"
 #pragma clang diagnostic ignored "-Wall"
 
-#elif defined(__GNUC_MINOR__)
+#elifdef __GNUC_MINOR__
 
 #pragma GCC optimize "-O0"
 #pragma GCC diagnostic ignored "-Wnonnull"
@@ -72,7 +73,6 @@
 #include <poll.h>
 #include <sched.h>
 #include <signal.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -258,7 +258,7 @@ main(int argc, char **argv)
 
 
 	/* file read, write */
-	read(9, NULL, 44);
+	read(9, nullptr, 44);
 	setup_buffers();
 	read(7, buffer[0], len0 + 3);
 	write(7, input[0], len0 + 4);
@@ -266,34 +266,34 @@ main(int argc, char **argv)
 	pread64(7, buffer[0], len0 + 3, ((size_t)UINT32_MAX) + 16);
 	setup_buffers();
 	pread64(-99, buffer[0], len0 + 2, 0);
-	pread64(8, NULL, len0 + 2, 0);
+	pread64(8, nullptr, len0 + 2, 0);
 	pwrite64(7, input[0], len0 + 3, ((size_t)UINT32_MAX) + 16);
 	pwrite64(-99, input[0], len0 + 2, 0);
-	pwrite64(-100, NULL, len0 + 2, -1);
+	pwrite64(-100, nullptr, len0 + 2, -1);
 	readv(1, p0, 4);
-	readv(1, NULL, 4);
+	readv(1, nullptr, 4);
 	writev(1, p0, 4);
-	writev(1, NULL, 4);
+	writev(1, nullptr, 4);
 	preadv(1, p0, 4, 0x1000);
-	preadv(1, NULL, 4, 0x1000);
+	preadv(1, nullptr, 4, 0x1000);
 	pwritev(1, p0, 4, 0x1000);
-	pwritev(1, NULL, 4, 0x1000);
+	pwritev(1, nullptr, 4, 0x1000);
 
 	/* open, close */
 	syscall(SYS_open, input[0], O_CREAT | O_RDWR | O_SYNC, 0321);
 	syscall(SYS_open, input[0], 0, 0321);
-	syscall(SYS_open, NULL, all_o_flags, 0777);
+	syscall(SYS_open, nullptr, all_o_flags, 0777);
 	syscall(SYS_open, input[0], all_o_flags, 0777);
 	syscall(SYS_open, input[1], O_RDWR | O_NONBLOCK, 0111);
 	syscall(SYS_open, input[1], 0);
-	syscall(SYS_open, NULL, 0);
+	syscall(SYS_open, nullptr, 0);
 	openat(AT_FDCWD, input[0], O_CREAT | O_RDWR | O_SYNC, 0321);
 	openat(AT_FDCWD, input[0], 0, 0321);
-	openat(AT_FDCWD, NULL, all_o_flags, 0777);
+	openat(AT_FDCWD, nullptr, all_o_flags, 0777);
 	openat(AT_FDCWD, input[0], all_o_flags, 0777);
 	openat(AT_FDCWD, input[1], O_RDWR | O_NONBLOCK, 0111);
 	openat(AT_FDCWD, input[1], 0);
-	openat(AT_FDCWD, NULL, 0);
+	openat(AT_FDCWD, nullptr, 0);
 	openat(99, input[0], O_CREAT, 0777);
 #ifdef O_TMPFILE
 	openat(AT_FDCWD, input[1], O_RDWR | O_TMPFILE, 0333);
@@ -302,24 +302,24 @@ main(int argc, char **argv)
 	close(9);
 
 	/* stat */
-	stat(NULL, NULL);
-	stat("/", NULL);
-	stat(NULL, &statbuf);
+	stat(nullptr, nullptr);
+	stat("/", nullptr);
+	stat(nullptr, &statbuf);
 	stat("/", &statbuf);
-	fstat(0, NULL);
-	fstat(-1, NULL);
+	fstat(0, nullptr);
+	fstat(-1, nullptr);
 	fstat(AT_FDCWD, &statbuf);
 	fstat(2, &statbuf);
-	lstat(NULL, NULL);
-	lstat("/", NULL);
-	lstat(NULL, &statbuf);
+	lstat(nullptr, nullptr);
+	lstat("/", nullptr);
+	lstat(nullptr, &statbuf);
 	lstat("/", &statbuf);
-	fstatat(AT_FDCWD, input[0], NULL, 0);
-	fstatat(AT_FDCWD, NULL, NULL, 0);
+	fstatat(AT_FDCWD, input[0], nullptr, 0);
+	fstatat(AT_FDCWD, nullptr, nullptr, 0);
 	fstatat(-1000, "", &statbuf, 0);
 	fstatat(AT_FDCWD, input[1], &statbuf, AT_SYMLINK_NOFOLLOW);
 
-	poll(NULL, 0, 7);
+	poll(nullptr, 0, 7);
 	poll(pfds, 3, 7);
 	syscall(SYS_ppoll, pfds, 2, p0, p1, 2);
 
@@ -342,25 +342,25 @@ main(int argc, char **argv)
 
 	/* VM management */
 	mock_result = -EINVAL;
-	mmap(NULL, 0, 0, 0, 0, 0);
+	mmap(nullptr, 0, 0, 0, 0, 0);
 	mock_result = 22;
 	mmap(p0, 0x8000, PROT_EXEC, MAP_SHARED, 99, 0x1000);
 	mprotect(p0, 0x4000, PROT_READ);
-	mprotect(NULL, 0x4000, PROT_WRITE);
+	mprotect(nullptr, 0x4000, PROT_WRITE);
 	munmap(p0, 0x4000);
-	munmap(NULL, 0x4000);
+	munmap(nullptr, 0x4000);
 	brk(p0);
-	brk(NULL);
+	brk(nullptr);
 	mremap(p0, ((size_t)UINT32_MAX) + 7, ((size_t)UINT32_MAX) + 77,
 			MREMAP_MAYMOVE);
 	msync(p0, 0, MS_ASYNC);
-	msync(NULL, 888, MS_INVALIDATE);
+	msync(nullptr, 888, MS_INVALIDATE);
 	mincore(p0, 99, p1);
-	mincore(p1, 1234, NULL);
-	mincore(NULL, 0, p0);
+	mincore(p1, 1234, nullptr);
+	mincore(nullptr, 0, p0);
 	madvise(p0, 99, MADV_NORMAL);
 	madvise(p1, 1234, MADV_DONTNEED);
-	madvise(NULL, 0, MADV_SEQUENTIAL);
+	madvise(nullptr, 0, MADV_SEQUENTIAL);
 	mlock(p0, 0x3000);
 #ifdef SYS_mlock2
 	syscall(SYS_mlock2, p0, 0x3000, 0);
@@ -376,11 +376,11 @@ main(int argc, char **argv)
 
 	ioctl(1, 77, p1);
 
-	access(NULL, F_OK);
+	access(nullptr, F_OK);
 	access(input[0], X_OK);
 	access("", R_OK | W_OK);
 	access(input[0], X_OK | R_OK | W_OK);
-	faccessat(AT_FDCWD, NULL, F_OK, 0);
+	faccessat(AT_FDCWD, nullptr, F_OK, 0);
 	faccessat(AT_FDCWD, input[0], X_OK, 0);
 	faccessat(AT_FDCWD, "", R_OK | W_OK, 0);
 	faccessat(9, input[0], X_OK | R_OK | W_OK, 0);
@@ -483,9 +483,9 @@ main(int argc, char **argv)
 	syscall(SYS_mkdir, input[0], 0644);
 	syscall(SYS_mkdirat, AT_FDCWD, input[0], 0644);
 	mkdirat(33, input[0], 0644);
-	mkdirat(33, NULL, 0555);
+	mkdirat(33, nullptr, 0555);
 	syscall(SYS_rmdir, input[0]);
-	syscall(SYS_rmdir, NULL);
+	syscall(SYS_rmdir, nullptr);
 
 	/* libc implementations might translate creat to open with O_CREAT */
 	syscall(SYS_creat, input[0], 0644);
@@ -503,7 +503,7 @@ main(int argc, char **argv)
 	symlink(input[0], input[1]);
 	symlinkat(input[0], 7, input[1]);
 	symlinkat(input[0], AT_FDCWD, input[1]);
-	symlinkat(input[0], AT_FDCWD, NULL);
+	symlinkat(input[0], AT_FDCWD, nullptr);
 	setup_buffers();
 	readlink(input[0], buffer[0], len0);
 	setup_buffers();
@@ -525,7 +525,7 @@ main(int argc, char **argv)
 	umask(0222);
 
 	syscall(SYS_gettimeofday, p0, p1);
-	syscall(SYS_gettimeofday, NULL, NULL);
+	syscall(SYS_gettimeofday, nullptr, nullptr);
 	syscall(SYS_settimeofday, p0, p1);
 
 	syscall(SYS_getrlimit, RLIMIT_CORE, p1);
@@ -538,7 +538,7 @@ main(int argc, char **argv)
 
 	sysinfo(p0);
 
-	times(NULL);
+	times(nullptr);
 	times(p0);
 
 	getuid();

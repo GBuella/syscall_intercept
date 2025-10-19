@@ -1,5 +1,6 @@
 /*
  * Copyright 2017, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -36,7 +37,6 @@
 #endif
 
 #include <assert.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>

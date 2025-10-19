@@ -1,5 +1,6 @@
 /*
  * Copyright 2016-2017, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -86,7 +87,7 @@ void xread(long fd, void *buffer, size_t size);
 /*
  * strerror_no_intercept - returns a pointer to a C string associated with
  * an errno value.
- * Does not go through libc, MT-safe, signal-safe, never returns NULL.
+ * Does not go through libc, MT-safe, signal-safe, never returns nullptr.
  */
 const char *strerror_no_intercept(long errnum);
 

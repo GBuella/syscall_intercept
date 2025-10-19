@@ -1,5 +1,6 @@
 #
 # Copyright 2017-2020, Intel Corporation
+# Copyright 2025, Gabor Buella
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -29,8 +30,11 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.21)
 project(syscall_intercept C ASM)
+set(CMAKE_C_STANDARD 23)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
 
 set(CMAKE_DISABLE_IN_SOURCE_BUILD ON)
 # Setting CMAKE_DISABLE_IN_SOURCE_BUILD to ON should
@@ -166,6 +170,8 @@ set_target_properties(syscall_intercept_shared syscall_intercept_static
 check_language(CXX)
 if(CMAKE_CXX_COMPILER)
 	enable_language(CXX)
+	set(CMAKE_CXX_STANDARD 11)
+	set(CMAKE_CXX_STANDARD_REQUIRED ON)
 	add_executable(cpp_test src/cpp_compile_test.cc src/cpp_compile_mock.c)
 	add_dependencies(syscall_intercept_base_c cpp_test)
 endif()

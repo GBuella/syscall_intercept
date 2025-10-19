@@ -1,5 +1,6 @@
 /*
  * Copyright 2016-2017, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -56,7 +57,7 @@ busy(void *arg)
 	char buffer[0x100];
 	size_t s;
 
-	if ((f = fopen(path, "r")) == NULL)
+	if ((f = fopen(path, "r")) == nullptr)
 		exit(EXIT_FAILURE);
 
 	s = fread(buffer, 1, sizeof(buffer), f);
@@ -76,7 +77,7 @@ busy(void *arg)
 
 	magic_syscall_stop_log();
 
-	return NULL;
+	return nullptr;
 }
 
 int
@@ -98,7 +99,7 @@ main(int argc, char *argv[])
 		magic_syscall_start_log(log_child, "1");
 		busy(argv[1]);
 	} else {
-		wait(NULL);
+		wait(nullptr);
 		busy(argv[1]);
 	}
 

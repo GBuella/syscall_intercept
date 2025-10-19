@@ -1,5 +1,6 @@
 /*
  * Copyright 2017, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -44,7 +45,6 @@
 #define INTERCEPT_HOOK_TEST_DATA_H
 
 #include <unistd.h>
-#include <stdbool.h>
 
 /* arbitrary fd, expected not to conflict with any valid fd */
 static const int hook_test_fd = 8765;

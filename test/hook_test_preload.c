@@ -1,5 +1,6 @@
 /*
  * Copyright 2017, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -36,7 +37,6 @@
 #endif
 
 #include <assert.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,7 +58,7 @@ hook(long syscall_number, long arg0, long arg1, long arg2, long *result)
 {
 	switch (hook_counter++) {
 		case 0:
-			/* fallthrough */
+			[[fallthrough]];
 		case 2:
 			assert(syscall_number == SYS_write);
 			assert(arg0 == hook_test_fd);

@@ -1,5 +1,6 @@
 /*
  * Copyright 2017, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -41,12 +42,12 @@
 #include "libsyscall_intercept_hook_point.h"
 
 #include <errno.h>
-#include <stdbool.h>
 #include <sched.h>
 #include <syscall.h>
 #include <stdlib.h>
 
-#define FORK_MAX_COUNT 16
+/* how many are allowed to pass through, before blocking? */
+static int fork_counter_max = 16;
 
 /*
  * specifies_new_stack - does the syscall ask for a new stack?
@@ -84,8 +85,6 @@ is_syscall_fork(long syscall_number, long arg0)
 
 static int fork_counter; /* how many forks intercepted so far? */
 
-/* how many are allowed to pass through, before blocking? */
-static int fork_counter_max = FORK_MAX_COUNT;
 
 static long
 example_fork_hook(long syscall_number,
@@ -149,7 +148,7 @@ start(void)
 {
 	const char *e = getenv("ALLOW_FORK_MAX");
 
-	if (e != NULL)
+	if (e != nullptr)
 		fork_counter_max = atoi(e);
 
 	intercept_hook_point = &hook;

@@ -1,5 +1,6 @@
 /*
  * Copyright 2016-2017, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -40,7 +41,6 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <sched.h>
-#include <stdbool.h>
 #include <stdint.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -215,7 +215,7 @@ print_flag_set(char *buffer_start, char *c, long flags,
 		const struct flag_desc *desc)
 {
 	bool is_zero = flags == 0;
-	while (flags != 0 && desc->printable_name != NULL) {
+	while (flags != 0 && desc->printable_name != nullptr) {
 		if (is_zero && desc->flag == 0)
 			return print_flag(buffer_start, c,
 						desc->printable_name);
@@ -292,7 +292,7 @@ xprint_escape(char *restrict dst, const char *restrict src,
 {
 	char *dst_end = dst + dst_size - 5;
 
-	if (src == NULL)
+	if (src == nullptr)
 		return print_cstr(dst, "(null)");
 
 	*dst++ = '"';
@@ -624,7 +624,7 @@ static char *
 print_fcntl_cmd(char *buffer, int cmd)
 {
 	for (const struct flag_desc *d = fcntl_cmds;
-		d->printable_name != NULL;
+		d->printable_name != nullptr;
 		++d) {
 		if (d->flag == cmd)
 			return print_cstr(buffer, d->printable_name);
@@ -805,7 +805,7 @@ intercept_setup_log(const char *path, const char *trunc)
 {
 	char full_path[PATH_MAX];
 
-	if (path == NULL || path[0] == '\0')
+	if (path == nullptr || path[0] == '\0')
 		return;
 
 	char *c = full_path;
@@ -853,7 +853,7 @@ print_syscall(char *c, const struct syscall_desc *desc,
 {
 	const struct syscall_format *format = get_syscall_format(desc);
 
-	if (format->name != NULL) {
+	if (format->name != nullptr) {
 		/* known syscall, e.g.: "open(" */
 		c = print_cstr(c, format->name);
 		c = print_cstr(c, "(");

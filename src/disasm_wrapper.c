@@ -1,5 +1,6 @@
 /*
  * Copyright 2016-2020, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -43,6 +44,7 @@
 #include "disasm_wrapper.h"
 
 #include <assert.h>
+#include <stdarg.h>
 #include <string.h>
 #include <syscall.h>
 #include "capstone_wrapper.h"
@@ -63,7 +65,7 @@ struct intercept_disasm_context {
  * this regard i.e. providing capstone with nop implementation of vsnprintf.
  */
 static int
-nop_vsnprintf()
+nop_vsnprintf(char *, size_t,  const char *, va_list)
 {
 	return 0;
 }
@@ -114,7 +116,7 @@ intercept_disasm_init(const unsigned char *begin, const unsigned char *end)
 	if (cs_option(context->handle, CS_OPT_MEM, (size_t)&x) != 0)
 		xabort("cs_option - CS_OPT_MEM");
 
-	if ((context->insn = cs_malloc(context->handle)) == NULL)
+	if ((context->insn = cs_malloc(context->handle)) == nullptr)
 		xabort("cs_malloc");
 
 	return context;
@@ -208,7 +210,6 @@ intercept_disasm_next_instruction(struct intercept_disasm_context *context,
 					const unsigned char *code)
 {
 	static const unsigned char endbr64[] = {0xf3, 0x0f, 0x1e, 0xfa};
-
 	struct intercept_disasm_result result = {.address = code, 0, };
 	const unsigned char *start = code;
 	size_t size = (size_t)(context->end - code + 1);

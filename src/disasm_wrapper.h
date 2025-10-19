@@ -1,5 +1,6 @@
 /*
  * Copyright 2016-2020, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -44,8 +45,6 @@
 #ifndef INTERCEPT_DISASM_WRAPPER_H
 #define INTERCEPT_DISASM_WRAPPER_H
 
-#include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 
 struct intercept_disasm_result {

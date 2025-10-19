@@ -132,7 +132,7 @@ add_test(NAME "fork_logging"
 	-DTEST_NAME=logging
 	-DLIB_FILE=$<TARGET_FILE:syscall_intercept_shared>
 	-DTEST_PROG=$<TARGET_FILE:fork_logging>
-	-DTEST_PROG_ARG=${CMAKE_CURRENT_SOURCE_DIR}/fork_logging.c
+	-DTEST_PROG_ARG=${CMAKE_CURRENT_SOURCE_DIR}/dummy_file
 	-DHAS_SECOND_LOG=1
 	-DMATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/libcintercept0.log.match
 	-DSECOND_MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/libcintercept0_child.log.match
@@ -177,7 +177,7 @@ add_test(NAME "hook_clone"
 	-DTEST_NAME=hook_clone
 	-DLIB_FILE=$<TARGET_FILE:hook_test_clone_preload>
 	-DTEST_PROG=$<TARGET_FILE:fork_logging>
-	-DTEST_PROG_ARG=${CMAKE_CURRENT_SOURCE_DIR}/fork_logging.c
+	-DTEST_PROG_ARG=${CMAKE_CURRENT_SOURCE_DIR}/dummy_file
 	-DMATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/libcintercept0.log.match
 	-DHAS_SECOND_LOG=1
 	-DSECOND_MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/libcintercept0_child.log.match

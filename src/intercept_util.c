@@ -1,5 +1,6 @@
 /*
  * Copyright 2016-2017, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -63,7 +64,7 @@ void *
 xmmap_anon(size_t size)
 {
 	long addr = syscall_no_intercept(SYS_mmap,
-				NULL, size,
+				nullptr, size,
 				PROT_READ | PROT_WRITE,
 				MAP_PRIVATE | MAP_ANON, -1, (off_t)0);
 
@@ -516,7 +517,7 @@ strerror_no_intercept(long errnum)
 	if (errnum < 0 || (size_t)errnum >= ARRAY_SIZE(error_strings))
 		return unkown;
 
-	if (error_strings[errnum] == NULL)
+	if (error_strings[errnum] == nullptr)
 		return unkown;
 
 	return error_strings[errnum];

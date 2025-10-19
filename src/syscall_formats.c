@@ -406,7 +406,7 @@ static struct syscall_format openat_with_o_creat = {.name = "openat", rdec,
 static struct syscall_format fcntl_with_flock = {.name = "fcntl", rdec,
 	{arg_fd, arg_fcntl_cmd, arg_flock}};
 
-static struct syscall_format unkown = {.name = NULL, rdec,
+static struct syscall_format unkown = {.name = nullptr, rdec,
 	{arg_, arg_, arg_, arg_, arg_, arg_}};
 
 static bool
@@ -448,7 +448,7 @@ get_syscall_format(const struct syscall_desc *desc)
 	if (desc->nr < 0 || (size_t)desc->nr >= ARRAY_SIZE(formats))
 		return &unkown;
 
-	if (formats[desc->nr].name == NULL)
+	if (formats[desc->nr].name == nullptr)
 		return &unkown;
 
 	if (desc->nr == SYS_open && oflags_refer_mode_arg((int)desc->args[1]))

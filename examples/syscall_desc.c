@@ -1,5 +1,6 @@
 /*
  * Copyright 2017, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -411,10 +412,10 @@ const struct syscall_desc *
 get_syscall_desc(long syscall_number, const long args[6])
 {
 	if (syscall_number < 0)
-		return NULL;
+		return nullptr;
 
 	if ((size_t)syscall_number >= (sizeof(table) / sizeof(table[0])))
-		return NULL;
+		return nullptr;
 
 	if (syscall_number == SYS_open && (args[1] & O_CREAT) == 0)
 		return &open_without_mode;

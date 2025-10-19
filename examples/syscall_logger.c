@@ -1,5 +1,6 @@
 /*
  * Copyright 2017, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,7 +36,6 @@
 
 #include <errno.h>
 #include <limits.h>
-#include <stdbool.h>
 #include <stdlib.h>
 #include <syscall.h>
 #include <unistd.h>
@@ -57,7 +57,7 @@ exchange_buffer_offset(size_t *expected, size_t new)
 			__ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
 }
 
-#define DUMP_TRESHOLD (sizeof(buffer) - 0x1000)
+/* constexpr */ static const size_t dump_treshold = sizeof(buffer) - 0x1000;
 
 static void
 append_buffer(const char *data, ssize_t len)
@@ -66,7 +66,7 @@ append_buffer(const char *data, ssize_t len)
 	size_t offset = buffer_offset;
 
 	while (true) {
-		while (offset >= DUMP_TRESHOLD) {
+		while (offset >= dump_treshold) {
 			syscall_no_intercept(SYS_sched_yield);
 			offset = buffer_offset;
 		}
@@ -81,7 +81,7 @@ append_buffer(const char *data, ssize_t len)
 		__atomic_fetch_sub(&writers, 1, __ATOMIC_SEQ_CST);
 	}
 
-	if (offset + len > DUMP_TRESHOLD) {
+	if (offset + len > dump_treshold) {
 		while (__atomic_load_n(&writers, __ATOMIC_SEQ_CST) != 0)
 			syscall_no_intercept(SYS_sched_yield);
 
@@ -697,7 +697,7 @@ print_rdec(char *dst, long n)
 	dst = print_signed_dec(dst, n);
 
 	if (n < 0 && n > -((long)ARRAY_SIZE(error_codes))) {
-		if (error_codes[-n] != NULL) {
+		if (error_codes[-n] != nullptr) {
 			dst = print_cstr(dst, " (");
 			dst = print_cstr(dst, error_codes[-n]);
 			dst = print_cstr(dst, ")");
@@ -805,7 +805,7 @@ print_syscall(const struct syscall_desc *desc,
 	char local_buffer[0x300];
 	char *c;
 
-	if (desc != NULL)
+	if (desc != nullptr)
 		c = print_known_syscall(local_buffer, desc, args, result);
 	else
 		c = print_unknown_syscall(local_buffer, syscall_number,
@@ -826,7 +826,7 @@ hook(long syscall_number,
 	const struct syscall_desc *desc =
 		get_syscall_desc(syscall_number, args);
 
-	if (desc != NULL && desc->return_type == rnoreturn) {
+	if (desc != nullptr && desc->return_type == rnoreturn) {
 		print_syscall(desc, syscall_number, args, 0);
 		if (syscall_number == SYS_exit_group && buffer_offset > 0)
 			syscall_no_intercept(SYS_write, log_fd,
@@ -846,7 +846,7 @@ start(void)
 {
 	const char *path = getenv("SYSCALL_LOG_PATH");
 
-	if (path == NULL)
+	if (path == nullptr)
 		syscall_no_intercept(SYS_exit_group, 3);
 
 	log_fd = (int)syscall_no_intercept(SYS_open,

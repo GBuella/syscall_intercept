@@ -1,5 +1,6 @@
 /*
  * Copyright 2016-2020, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -37,7 +38,6 @@
 #ifndef INTERCEPT_INTERCEPT_H
 #define INTERCEPT_INTERCEPT_H
 
-#include <stdbool.h>
 #include <elf.h>
 #include <unistd.h>
 #include <dlfcn.h>
@@ -50,9 +50,9 @@ void debug_dump(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
 #define INTERCEPTOR_EXIT_CODE 111
 
-__attribute__((noreturn)) void xabort_errno(int error_code, const char *msg);
+[[noreturn]] void xabort_errno(int error_code, const char *msg);
 
-__attribute__((noreturn)) void xabort(const char *msg);
+[[noreturn]] void xabort(const char *msg);
 
 void xabort_on_syserror(long syscall_result, const char *msg);
 

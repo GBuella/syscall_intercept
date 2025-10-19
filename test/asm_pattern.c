@@ -1,5 +1,6 @@
 /*
  * Copyright 2017, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -79,7 +80,7 @@ static void *
 xdlsym(void *lib, const char *name, const char *path)
 {
 	void *symbol = dlsym(lib, name);
-	if (symbol == NULL) {
+	if (symbol == nullptr) {
 		fprintf(stderr,
 		    "\"%s\" not found in %s: %s\n",
 		    name, path, dlerror());
@@ -101,7 +102,7 @@ load_test_lib(const char *path)
 	struct lib_data data;
 
 	void *lib = dlopen(path, RTLD_LAZY);
-	if (lib == NULL) {
+	if (lib == nullptr) {
 		fprintf(stderr, "error loading \"%s\": %s\n",
 		    path, dlerror());
 		exit(EXIT_FAILURE);
@@ -110,8 +111,8 @@ load_test_lib(const char *path)
 	data.mock_trampoline_table = xdlsym(lib, "trampoline_table", path);
 
 	if ((!dladdr(data.mock_trampoline_table, &data.info)) ||
-	    (data.info.dli_fname == NULL) ||
-	    (data.info.dli_fbase == NULL)) {
+	    (data.info.dli_fname == nullptr) ||
+	    (data.info.dli_fbase == nullptr)) {
 		fprintf(stderr,
 		    "error querying dlinfo for %s: %s\n",
 		    path, dlerror());
@@ -172,7 +173,7 @@ main(int argc, char **argv)
 	if (argc < 3)
 		return EXIT_FAILURE;
 
-	debug_dumps_on = getenv("INTERCEPT_DEBUG_DUMP") != NULL;
+	debug_dumps_on = getenv("INTERCEPT_DEBUG_DUMP") != nullptr;
 
 	/* first load both libraries */
 	struct lib_data lib_in = load_test_lib(argv[1]);
@@ -222,7 +223,7 @@ main(int argc, char **argv)
 		exit_code = EXIT_FAILURE;
 	}
 
-	if (lib_out.asm_wrapper_start != NULL &&
+	if (lib_out.asm_wrapper_start != nullptr &&
 		memcmp(builtin_wrapper_space, lib_out.asm_wrapper_start,
 		lib_out.asm_wrapper_end - lib_out.asm_wrapper_start) != 0) {
 		fputs("Invalid asm wrapper\n", stderr);

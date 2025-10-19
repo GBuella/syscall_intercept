@@ -1,5 +1,6 @@
 /*
  * Copyright 2016-2017, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -39,7 +40,6 @@
  */
 
 #include <assert.h>
-#include <stdbool.h>
 #include <elf.h>
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -85,7 +85,7 @@ debug_dump(const char *fmt, ...)
 		return;
 
 	va_start(ap, fmt);
-	len = vsnprintf(NULL, 0, fmt, ap);
+	len = vsnprintf(nullptr, 0, fmt, ap);
 	va_end(ap);
 
 	if (len <= 0)
@@ -102,7 +102,7 @@ debug_dump(const char *fmt, ...)
 
 static void log_header(void);
 
-void __attribute__((noreturn)) xlongjmp(long rip, long rsp, long rax);
+[[noreturn]] void xlongjmp(long rip, long rsp, long rax);
 
 /*
  * Kernel can clobber rcx and r11 while serving a syscall, those are ignored
@@ -180,7 +180,7 @@ static const char *
 get_lib_short_name(const char *name)
 {
 	const char *slash = strrchr(name, '/');
-	if (slash != NULL)
+	if (slash != nullptr)
 		name = slash + 1;
 
 	return name;
@@ -216,18 +216,18 @@ get_name_from_proc_maps(uintptr_t addr)
 {
 	static char paths[0x10000];
 	static char *next_path = paths;
-	const char *path = NULL;
+	const char *path = nullptr;
 
 	char line[0x2000];
 	FILE *maps;
 
 	if ((next_path >= paths + sizeof(paths) - sizeof(line)))
-		return NULL; /* No more space left */
+		return nullptr; /* No more space left */
 
-	if ((maps = fopen("/proc/self/maps", "r")) == NULL)
-		return NULL;
+	if ((maps = fopen("/proc/self/maps", "r")) == nullptr)
+		return nullptr;
 
-	while ((fgets(line, sizeof(line), maps)) != NULL) {
+	while ((fgets(line, sizeof(line), maps)) != nullptr) {
 		unsigned char *start;
 		unsigned char *end;
 
@@ -304,12 +304,12 @@ get_any_used_vaddr(const struct dl_phdr_info *info)
 static const char *
 get_object_path(const struct dl_phdr_info *info)
 {
-	if (info->dlpi_name != NULL && info->dlpi_name[0] != '\0') {
+	if (info->dlpi_name != nullptr && info->dlpi_name[0] != '\0') {
 		return info->dlpi_name;
 	} else {
 		uintptr_t addr = get_any_used_vaddr(info);
 		if (addr == 0)
-			return NULL;
+			return nullptr;
 		return get_name_from_proc_maps(addr);
 	}
 }
@@ -317,7 +317,7 @@ get_object_path(const struct dl_phdr_info *info)
 static bool
 is_vdso(uintptr_t addr, const char *path)
 {
-	return addr == (uintptr_t)vdso_addr || strstr(path, "vdso") != NULL;
+	return addr == (uintptr_t)vdso_addr || strstr(path, "vdso") != nullptr;
 }
 
 /*
@@ -415,7 +415,7 @@ analyze_object(struct dl_phdr_info *info, size_t size, void *data)
 	debug_dump("analyze_object called on \"%s\" at 0x%016" PRIxPTR "\n",
 	    info->dlpi_name, info->dlpi_addr);
 
-	if ((path = get_object_path(info)) == NULL)
+	if ((path = get_object_path(info)) == nullptr)
 		return 0;
 
 	debug_dump("analyze %s\n", path);
@@ -482,14 +482,14 @@ intercept(int argc, char **argv)
 		return;
 
 	vdso_addr = (void *)(uintptr_t)getauxval(AT_SYSINFO_EHDR);
-	debug_dumps_on = getenv("INTERCEPT_DEBUG_DUMP") != NULL;
-	patch_all_objs = (getenv("INTERCEPT_ALL_OBJS") != NULL);
+	debug_dumps_on = getenv("INTERCEPT_DEBUG_DUMP") != nullptr;
+	patch_all_objs = (getenv("INTERCEPT_ALL_OBJS") != nullptr);
 	intercept_setup_log(getenv("INTERCEPT_LOG"),
 			getenv("INTERCEPT_LOG_TRUNC"));
 	log_header();
 	init_patcher();
 
-	dl_iterate_phdr(analyze_object, NULL);
+	dl_iterate_phdr(analyze_object, nullptr);
 	if (!libc_found)
 		xabort("libc not found");
 
@@ -534,7 +534,7 @@ xabort_errno(int error_code, const char *msg)
 {
 	static const char main_msg[] = " libsyscall_intercept error\n";
 
-	if (msg != NULL) {
+	if (msg != nullptr) {
 		/* not using libc - inline strlen */
 		size_t len = 0;
 		while (msg[len] != '\0')
@@ -648,7 +648,7 @@ intercept_routine(struct context *context)
 
 	intercept_log_syscall(patch, &desc, UNKNOWN, 0);
 
-	if (intercept_hook_point != NULL)
+	if (intercept_hook_point != nullptr)
 		forward_to_kernel = intercept_hook_point(desc.nr,
 		    desc.args[0],
 		    desc.args[1],
@@ -711,10 +711,10 @@ struct wrapper_ret
 intercept_routine_post_clone(struct context *context)
 {
 	if (context->rax == 0) {
-		if (intercept_hook_point_clone_child != NULL)
+		if (intercept_hook_point_clone_child != nullptr)
 			intercept_hook_point_clone_child();
 	} else {
-		if (intercept_hook_point_clone_parent != NULL)
+		if (intercept_hook_point_clone_parent != nullptr)
 			intercept_hook_point_clone_parent(context->rax);
 	}
 

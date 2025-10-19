@@ -1,5 +1,6 @@
 /*
  * Copyright 2017, Intel Corporation
+ * Copyright 2025, Gabor Buella
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -30,7 +31,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <syscall.h>
@@ -46,7 +46,7 @@
 static int
 cmdline_match(const char *filter)
 {
-	if (filter == NULL)
+	if (filter == nullptr)
 		return 1;
 
 	size_t flen = strlen(filter);
@@ -85,7 +85,7 @@ syscall_hook_in_process_allowed(void)
 	if (is_decided)
 		return result;
 
-	if (cmdline == NULL)
+	if (cmdline == nullptr)
 		return 0;
 
 	result = cmdline_match(getenv("INTERCEPT_HOOK_CMDLINE_FILTER"));

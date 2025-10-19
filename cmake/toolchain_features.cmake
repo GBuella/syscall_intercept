@@ -1,5 +1,6 @@
 #
 # Copyright 2017, Intel Corporation
+# Copyright 2025, Gabor Buella
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions
@@ -34,27 +35,6 @@ include(CheckCXXCompilerFlag)
 include(CheckCSourceCompiles)
 include(CheckIncludeFiles)
 include(CheckFunctionExists)
-
-if (NOT CMAKE_VERSION VERSION_LESS 3.1.0)
-	set(CMAKE_C_STANDARD 99)
-	set(CMAKE_C_STANDARD_REQUIRED ON)
-	set(CMAKE_C_EXTENSIONS OFF)
-	set(CMAKE_CXX_STANDARD 11)
-else()
-	check_c_compiler_flag(-std=c99 HAS_STDC99)
-	if(HAS_STDC99)
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
-	else()
-		check_c_compiler_flag(-std=gnu99 HAS_STDGNU99)
-		if(HAS_STDGNU99)
-			set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
-		endif()
-	endif()
-	check_cxx_compiler_flag(-std=c++11 HAS_STDCPP11)
-	if(HAS_STDCPP11)
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-	endif()
-endif()
 
 check_c_compiler_flag(-Werror HAS_WERROR)
 check_c_compiler_flag(-Wall HAS_WALL)
